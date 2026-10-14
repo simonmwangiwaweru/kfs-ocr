@@ -1,0 +1,6 @@
+{
+  "name": "KFS Inventory Scan",
+  "description": "Field inventory data extraction and verification system for Kenya Forest Research Institute (KEFRI).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

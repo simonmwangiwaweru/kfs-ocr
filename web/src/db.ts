@@ -1,0 +1,54 @@
+import Dexie, { type Table } from 'dexie';
+
+export interface ScanRecord {
+  id: string;
+  title: string;
+  plotCode: string;
+  forestStation: string;
+  observerName: string;
+  date: number;
+  imageDataUrl?: string;
+  fileSizeBytes: number;
+  fileType: string;
+  syncStatus: 'SAVED_OFFLINE' | 'SYNCING' | 'SYNCED';
+  isVerified: boolean;
+  rows: Array<{
+    rowNumber: number;
+    treeNumber: string;
+    speciesCode: string;
+    dbhCm: string;
+    heightM: string;
+    healthStatus: string;
+    notes: string;
+    confidence: {
+      treeNumber: number;
+      speciesCode: number;
+      dbhCm: number;
+      heightM: number;
+    };
+    flags: {
+      dbhUncertain: boolean;
+      heightUncertain: boolean;
+    };
+    comments: Array<{
+      id: string;
+      author: string;
+      text: string;
+      timestamp: number;
+      isResolved: boolean;
+    }>;
+  }>;
+}
+
+export class KfsDatabase extends Dexie {
+  scans!: Table<ScanRecord, string>;
+
+  constructor() {
+    super('KfsInventoryScanDB');
+    this.version(1).stores({
+      scans: 'id, plotCode, forestStation, date, syncStatus, isVerified'
+    });
+  }
+}
+
+export const db = new KfsDatabase();
