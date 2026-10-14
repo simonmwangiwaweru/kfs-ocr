@@ -37,6 +37,7 @@ export interface ScanRecord {
       timestamp: number;
       isResolved: boolean;
     }>;
+    isVerified?: boolean;
   }>;
 }
 

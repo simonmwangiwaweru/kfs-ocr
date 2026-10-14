@@ -16,3 +16,9 @@
 local.properties
 .env
 debug.keystore
+node_modules
+web/node_modules
+dist
+web/dist
+.vercel
+
