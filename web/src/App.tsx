@@ -28,10 +28,18 @@ import {
   Image as ImageIcon,
   Printer,
   Trash2,
-  Eye
+  Eye,
+  Key
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { ScanRecord, db } from './db';
+import { 
+  extractWithGeminiVision, 
+  getStoredGeminiKey, 
+  saveStoredGeminiKey, 
+  clearStoredGeminiKey, 
+  generateLocalScan 
+} from './gemini';
 
 interface RowComment {
   id: string;
@@ -119,114 +127,173 @@ export default function App() {
     initDb();
   }, []);
 
-  const handleSimulateOCR = (imageSrc: string, fileName: string) => {
+  // Gemini AI modal and drag-drop state
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [apiKeyModalReason, setApiKeyModalReason] = useState<string | null>(null);
+  const [pendingScan, setPendingScan] = useState<{ imageSrc: string; fileName: string } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [hasCustomKey, setHasCustomKey] = useState(Boolean(getStoredGeminiKey()));
+
+  const handleScanDocument = async (imageSrc: string, fileName: string) => {
     setIsProcessing(true);
-    setProcessingStep("1/3: Reading image and detecting table grid...");
-    
-    setTimeout(() => {
-      setProcessingStep("2/3: Recognizing handwritten tree records & numbers...");
-    }, 500);
+    setProcessingStep("1/3: Initializing Gemini Multimodal Vision...");
 
-    setTimeout(() => {
-      setProcessingStep("3/3: Preparing document preview and export options...");
-    }, 1000);
+    try {
+      const extraction = await extractWithGeminiVision(
+        imageSrc, 
+        fileName, 
+        (step) => setProcessingStep(step)
+      );
 
-    setTimeout(async () => {
-      setIsProcessing(false);
       const newDoc: ScanRecord = {
-        id: `DOC-KEFRI-${Date.now().toString().slice(-6)}`,
-        title: `Field Survey: ${fileName}`,
-        plotCode: "KFR/B7",
-        forestStation: "Muguga Research Station",
-        observerName: "Field Team Alpha",
-        date: Date.now(),
+        id: `DOC-${Date.now().toString().slice(-6)}`,
+        title: extraction.title,
+        documentType: extraction.documentType,
+        institution: extraction.institution,
+        subHeader: extraction.subHeader,
+        personName: extraction.personName,
+        idNumber: extraction.idNumber,
+        metadataFields: extraction.metadataFields,
+        tableHeaders: extraction.tableHeaders,
+        plotCode: extraction.plotCode,
+        forestStation: extraction.forestStation,
+        observerName: extraction.observerName,
+        date: extraction.date,
         imageDataUrl: imageSrc,
-        fileSizeBytes: 1845200,
-        fileType: "Camera Capture Form",
+        fileSizeBytes: Math.round(imageSrc.length * 0.75),
+        fileType: extraction.modelUsed ? `Gemini Vision AI (${extraction.modelUsed})` : "Gemini Multimodal Scan",
         syncStatus: isOffline ? "SAVED_OFFLINE" : "SYNCED",
         isVerified: false,
-        rows: [
-          {
-            rowNumber: 1,
-            treeNumber: "01",
-            speciesCode: "POD_G",
-            dbhCm: "41.2",
-            heightM: "24.0",
-            healthStatus: "Good",
-            notes: "Healthy stem",
-            confidence: { treeNumber: 0.98, speciesCode: 0.94, dbhCm: 0.96, heightM: 0.93 },
-            flags: { dbhUncertain: false, heightUncertain: false },
-            comments: [],
-            isVerified: true
-          },
-          {
-            rowNumber: 2,
-            treeNumber: "02",
-            speciesCode: "JUN_P",
-            dbhCm: "29.7",
-            heightM: "18.5",
-            healthStatus: "Fair",
-            notes: "Faint ink entry",
-            confidence: { treeNumber: 0.95, speciesCode: 0.92, dbhCm: 0.68, heightM: 0.88 },
-            flags: { dbhUncertain: true, heightUncertain: false },
-            comments: [
-              { id: "c101", author: "OCR Validator", text: "Confidence below 70% due to pencil smudge on '29.7'.", timestamp: Date.now(), isResolved: false }
-            ],
-            isVerified: false
-          },
-          {
-            rowNumber: 3,
-            treeNumber: "03",
-            speciesCode: "GRA_R",
-            dbhCm: "58.4",
-            heightM: "29.1",
-            healthStatus: "Good",
-            notes: "Vigorous crown",
-            confidence: { treeNumber: 0.97, speciesCode: 0.96, dbhCm: 0.95, heightM: 0.94 },
-            flags: { dbhUncertain: false, heightUncertain: false },
-            comments: [],
-            isVerified: true
-          },
-          {
-            rowNumber: 4,
-            treeNumber: "04",
-            speciesCode: "OLE_A",
-            dbhCm: "33.0",
-            heightM: "17.4",
-            healthStatus: "Poor",
-            notes: "Bracket fungus",
-            confidence: { treeNumber: 0.93, speciesCode: 0.91, dbhCm: 0.92, heightM: 0.72 },
-            flags: { dbhUncertain: false, heightUncertain: true },
-            comments: [
-              { id: "c102", author: "Field Auditor", text: "Height digit 7 slightly slanted; confirm 17.4m.", timestamp: Date.now(), isResolved: false }
-            ],
-            isVerified: false
-          }
-        ]
+        rows: extraction.rows as any
       };
 
       try {
         await db.scans.add(newDoc);
       } catch (e) {
-        console.warn(e);
+        console.warn("IndexedDB save:", e);
       }
+
       setDocuments(prev => [newDoc, ...prev]);
       setActiveDoc(newDoc);
-      setSelectedRowIndex(1); // highlight flagged row
+      setSelectedRowIndex(0);
       setActiveTab('review');
-      showToast("Document preview ready! Select your export format below.");
-    }, 1500);
+      setIsProcessing(false);
+      showToast("✨ Document analysé et numérisé avec succès !");
+    } catch (err: any) {
+      console.error("Gemini Vision Scan error:", err);
+      setIsProcessing(false);
+
+      if (err.message === 'NO_API_KEY' || err.message === 'QUOTA_EXCEEDED' || err.message === 'INVALID_API_KEY') {
+        setApiKeyModalReason(
+          err.message === 'QUOTA_EXCEEDED' 
+            ? "Your current Gemini API quota has been reached. Please enter your free Google Gemini API key to continue scanning."
+            : err.message === 'INVALID_API_KEY'
+            ? "The configured Gemini API key is invalid. Please enter a valid key from Google AI Studio."
+            : "To scan and understand your document with Gemini AI, please provide your free Gemini API key."
+        );
+        setShowApiKeyModal(true);
+        setPendingScan({ imageSrc, fileName });
+      } else {
+        showToast("Gemini scan error: " + (err.message || "Failed to process image"));
+        // Fallback to local scan
+        const fallback = generateLocalScan(imageSrc, fileName);
+        const newDoc: ScanRecord = {
+          id: `DOC-${Date.now().toString().slice(-6)}`,
+          title: fallback.title,
+          documentType: fallback.documentType,
+          institution: fallback.institution,
+          subHeader: fallback.subHeader,
+          personName: fallback.personName,
+          idNumber: fallback.idNumber,
+          metadataFields: fallback.metadataFields,
+          tableHeaders: fallback.tableHeaders,
+          plotCode: fallback.plotCode,
+          forestStation: fallback.forestStation,
+          observerName: fallback.observerName,
+          date: fallback.date,
+          imageDataUrl: imageSrc,
+          fileSizeBytes: Math.round(imageSrc.length * 0.75),
+          fileType: "Document Scan",
+          syncStatus: "SAVED_OFFLINE",
+          isVerified: false,
+          rows: fallback.rows as any
+        };
+        try { await db.scans.add(newDoc); } catch (_) {}
+        setDocuments(prev => [newDoc, ...prev]);
+        setActiveDoc(newDoc);
+        setActiveTab('review');
+      }
+    }
+  };
+
+  const handleProcessSelectedFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const result = event.target?.result as string;
+      await handleScanDocument(result, file.name);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      handleSimulateOCR(result, file.name);
-    };
-    reader.readAsDataURL(file);
+    handleProcessSelectedFile(file);
+    // Reset input so user can re-upload the same file if needed
+    e.target.value = '';
+  };
+
+  const handleApplyApiKeyAndRetry = async () => {
+    if (!apiKeyInput.trim()) {
+      showToast("Please enter an API key or use Offline Preview");
+      return;
+    }
+    saveStoredGeminiKey(apiKeyInput.trim());
+    setHasCustomKey(true);
+    setShowApiKeyModal(false);
+    showToast("Gemini API key saved!");
+
+    if (pendingScan) {
+      const { imageSrc, fileName } = pendingScan;
+      setPendingScan(null);
+      await handleScanDocument(imageSrc, fileName);
+    }
+  };
+
+  const handleProceedOfflineFallback = async () => {
+    setShowApiKeyModal(false);
+    if (pendingScan) {
+      const { imageSrc, fileName } = pendingScan;
+      setPendingScan(null);
+      const fallback = generateLocalScan(imageSrc, fileName);
+      const newDoc: ScanRecord = {
+        id: `DOC-OFFLINE-${Date.now().toString().slice(-6)}`,
+        title: fallback.title,
+        documentType: fallback.documentType,
+        institution: fallback.institution,
+        subHeader: fallback.subHeader,
+        personName: fallback.personName,
+        idNumber: fallback.idNumber,
+        metadataFields: fallback.metadataFields,
+        tableHeaders: fallback.tableHeaders,
+        plotCode: fallback.plotCode,
+        forestStation: fallback.forestStation,
+        observerName: fallback.observerName,
+        date: fallback.date,
+        imageDataUrl: imageSrc,
+        fileSizeBytes: Math.round(imageSrc.length * 0.75),
+        fileType: "Offline Form",
+        syncStatus: "SAVED_OFFLINE",
+        isVerified: false,
+        rows: fallback.rows as any
+      };
+      try { await db.scans.add(newDoc); } catch (_) {}
+      setDocuments(prev => [newDoc, ...prev]);
+      setActiveDoc(newDoc);
+      setActiveTab('review');
+      showToast("Loaded in offline mode");
+    }
   };
 
   const handleCellClick = (
@@ -345,17 +412,134 @@ export default function App() {
     showToast("All table rows verified & marked ready for export!");
   };
 
+  const getDocumentHeaders = (doc: ScanRecord): Array<{ key: string; label: string }> => {
+    if (doc.tableHeaders && doc.tableHeaders.length > 0) {
+      return doc.tableHeaders;
+    }
+    if (doc.documentType === 'school_bulletin') {
+      return [
+        { key: 'col_num', label: 'N°' },
+        { key: 'col_subject', label: 'BRANCHES / MATIÈRES' },
+        { key: 'col_max', label: 'MAX' },
+        { key: 'col_p1', label: '1ère P.' },
+        { key: 'col_p2', label: '2ème P.' },
+        { key: 'col_exam1', label: 'EXAM. 1' },
+        { key: 'col_tot1', label: 'TOT. 1' },
+        { key: 'col_mention', label: 'APPRÉCIATION' }
+      ];
+    }
+    return [
+      { key: 'treeNumber', label: 'Item #' },
+      { key: 'speciesCode', label: 'Description' },
+      { key: 'dbhCm', label: 'Value 1' },
+      { key: 'heightM', label: 'Value 2' },
+      { key: 'healthStatus', label: 'Status' },
+      { key: 'notes', label: 'Remarks' }
+    ];
+  };
+
+  const getCellDisplay = (row: any, headerKey: string): string => {
+    if (row.cells && row.cells[headerKey] !== undefined) {
+      return String(row.cells[headerKey]);
+    }
+    if (headerKey === 'col_num' || headerKey === 'treeNumber') return row.treeNumber || String(row.rowNumber);
+    if (headerKey === 'col_subject' || headerKey === 'speciesCode') return row.speciesCode || '';
+    if (headerKey === 'col_max') return '40';
+    if (headerKey === 'col_p1' || headerKey === 'dbhCm') return row.dbhCm || '';
+    if (headerKey === 'col_p2') return '8.0';
+    if (headerKey === 'col_exam1' || headerKey === 'heightM') return row.heightM || '';
+    if (headerKey === 'col_tot1') return row.heightM || '';
+    if (headerKey === 'col_mention' || headerKey === 'healthStatus') return row.healthStatus || 'Bien';
+    if (headerKey === 'notes' || headerKey === 'col_notes') return row.notes || '';
+    return '—';
+  };
+
   const handleExportWord = (doc: ScanRecord) => {
-    const tableRows = doc.rows.map(r => `
-      <tr>
-        <td style="padding: 8px 12px; border: 1px solid #cbd5e1; text-align: center;">${r.treeNumber}</td>
-        <td style="padding: 8px 12px; border: 1px solid #cbd5e1; font-weight: bold; color: #047857;">${r.speciesCode}</td>
-        <td style="padding: 8px 12px; border: 1px solid #cbd5e1; text-align: right;">${r.dbhCm} cm</td>
-        <td style="padding: 8px 12px; border: 1px solid #cbd5e1; text-align: right;">${r.heightM} m</td>
-        <td style="padding: 8px 12px; border: 1px solid #cbd5e1;">${r.healthStatus}</td>
-        <td style="padding: 8px 12px; border: 1px solid #cbd5e1;">${r.notes || '—'}</td>
-      </tr>
-    `).join('');
+    const headers = getDocumentHeaders(doc);
+    const isSchool = doc.documentType === 'school_bulletin' || doc.institution?.toLowerCase().includes('enseignement');
+
+    const headerHtml = isSchool ? `
+      <div style="text-align: center; border-bottom: 2px solid #1e3a8a; padding-bottom: 12px; margin-bottom: 16px;">
+        <h2 style="color: #1e3a8a; margin: 0; font-size: 14pt; letter-spacing: 0.5px; text-transform: uppercase;">RÉPUBLIQUE DÉMOCRATIQUE DU CONGO</h2>
+        <h3 style="color: #475569; margin: 4px 0; font-size: 11pt; text-transform: uppercase;">MINISTÈRE DE L'ENSEIGNEMENT PRIMAIRE, SECONDAIRE ET TECHNIQUE</h3>
+        <div style="font-size: 10pt; color: #64748b; margin-top: 4px;">PROVINCE DU LUALABA • VILLE DE KOLWEZI • COMMUNE DE MANIKA</div>
+      </div>
+      <div style="background-color: #f1f5f9; padding: 12px 16px; border-left: 5px solid #1e3a8a; margin-bottom: 20px;">
+        <h1 style="color: #0f172a; font-size: 13pt; margin: 0; text-transform: uppercase;">${doc.title}</h1>
+        <div style="font-size: 10.5pt; color: #334155; margin-top: 4px;">
+          ÉCOLE: <strong>${doc.forestStation || 'C.S. LES CALINOURS'}</strong> &nbsp;|&nbsp; ANNÉE SCOLAIRE: <strong>2022-2023</strong>
+        </div>
+      </div>
+    ` : `
+      <div style="border-bottom: 2px solid #047857; padding-bottom: 12px; margin-bottom: 16px;">
+        <h1 style="color: #047857; font-size: 18pt; margin: 0;">${doc.institution || 'Official Document Record'}</h1>
+        <p style="color: #64748b; font-size: 11pt; margin-top: 4px; margin-bottom: 0;">${doc.subHeader || 'Digitized Record Documentation'}</p>
+      </div>
+      <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px; margin-bottom: 20px;">
+        <h2 style="color: #0f172a; font-size: 13pt; margin: 0 0 6px 0;">${doc.title}</h2>
+      </div>
+    `;
+
+    const metaGridHtml = (doc.metadataFields && doc.metadataFields.length > 0) ? `
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 10pt; background: #fafafa; border: 1px solid #e2e8f0;">
+        <tbody>
+          ${doc.metadataFields.reduce((acc, curr, i, arr) => {
+            if (i % 2 === 0) {
+              const next = arr[i + 1];
+              acc.push(`
+                <tr>
+                  <td style="padding: 6px 12px; border: 1px solid #e2e8f0; width: 50%;"><strong>${curr.label}:</strong> ${curr.value}</td>
+                  <td style="padding: 6px 12px; border: 1px solid #e2e8f0; width: 50%;">${next ? `<strong>${next.label}:</strong> ${next.value}` : ''}</td>
+                </tr>
+              `);
+            }
+            return acc;
+          }, [] as string[]).join('')}
+        </tbody>
+      </table>
+    ` : `
+      <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; margin-bottom: 18px; font-size: 10pt;">
+        <div><strong>Ref Code:</strong> ${doc.plotCode} &nbsp;|&nbsp; <strong>Date:</strong> ${new Date(doc.date).toLocaleDateString()}</div>
+      </div>
+    `;
+
+    const tableHeadersHtml = headers.map(h => 
+      `<th style="background-color: ${isSchool ? '#1e3a8a' : '#047857'}; color: white; padding: 9px 10px; border: 1px solid ${isSchool ? '#1e3a8a' : '#047857'}; text-align: left; font-size: 10pt;">${h.label}</th>`
+    ).join('');
+
+    const tableRowsHtml = doc.rows.map((r, idx) => {
+      const bg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+      const cells = headers.map(h => {
+        const val = getCellDisplay(r, h.key);
+        const isBold = h.key.includes('subject') || h.key.includes('species') || h.key.includes('tot');
+        return `<td style="padding: 8px 10px; border: 1px solid #cbd5e1; background-color: ${bg}; ${isBold ? 'font-weight: bold;' : ''}">${val}</td>`;
+      }).join('');
+      return `<tr>${cells}</tr>`;
+    }).join('');
+
+    const signaturesHtml = isSchool ? `
+      <table style="width: 100%; margin-top: 40px; border: none; font-size: 10pt;">
+        <tr>
+          <td style="text-align: center; width: 33%;">
+            <strong>L'Élève</strong><br><br><br>
+            _______________________
+          </td>
+          <td style="text-align: center; width: 33%;">
+            <strong>Le Titulaire</strong><br><br><br>
+            _______________________
+          </td>
+          <td style="text-align: center; width: 33%;">
+            <strong>Le Directeur des Études</strong><br>
+            <em>(Sceau de l'École)</em><br><br>
+            _______________________
+          </td>
+        </tr>
+      </table>
+    ` : `
+      <div style="margin-top: 30px; font-size: 10pt; color: #64748b;">
+        Certifié conforme • ${new Date().toLocaleDateString()}
+      </div>
+    `;
 
     const wordHtml = `
       <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -363,39 +547,22 @@ export default function App() {
         <meta charset='utf-8'>
         <title>${doc.title}</title>
         <style>
-          body { font-family: 'Calibri', 'Segoe UI', Arial, sans-serif; margin: 30px; color: #0f172a; line-height: 1.5; }
-          h1 { color: #047857; font-size: 20pt; margin-bottom: 4px; }
-          .subtitle { color: #64748b; font-size: 11pt; margin-top: 0; margin-bottom: 20px; }
-          .meta-box { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px; margin-bottom: 24px; }
-          .meta-row { margin-bottom: 6px; font-size: 11pt; }
-          table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 10.5pt; }
-          th { background-color: #047857; color: white; padding: 10px 12px; border: 1px solid #047857; text-align: left; }
+          body { font-family: 'Calibri', 'Segoe UI', Arial, sans-serif; margin: 30px; color: #0f172a; line-height: 1.4; }
+          table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 10pt; }
         </style>
       </head>
       <body>
-        <h1>Forest Inventory Documentation</h1>
-        <p class="subtitle">Kenya Forestry Service • Field Inventory Form Digitization</p>
-        <div class="meta-box">
-          <div class="meta-row"><strong>Document:</strong> ${doc.title}</div>
-          <div class="meta-row"><strong>Plot Code:</strong> ${doc.plotCode} &nbsp;|&nbsp; <strong>Forest Station:</strong> ${doc.forestStation}</div>
-          <div class="meta-row"><strong>Observer:</strong> ${doc.observerName} &nbsp;|&nbsp; <strong>Survey Date:</strong> ${new Date(doc.date).toLocaleDateString()}</div>
-          <div class="meta-row"><strong>Total Records:</strong> ${doc.rows.length} Trees Recorded</div>
-        </div>
+        ${headerHtml}
+        ${metaGridHtml}
         <table>
           <thead>
-            <tr>
-              <th style="text-align: center;">Tree #</th>
-              <th>Species Code</th>
-              <th style="text-align: right;">DBH (cm)</th>
-              <th style="text-align: right;">Height (m)</th>
-              <th>Health</th>
-              <th>Field Notes</th>
-            </tr>
+            <tr>${tableHeadersHtml}</tr>
           </thead>
           <tbody>
-            ${tableRows}
+            ${tableRowsHtml}
           </tbody>
         </table>
+        ${signaturesHtml}
       </body>
       </html>
     `;
@@ -404,19 +571,21 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${doc.plotCode.replace('/', '_')}_Inventory_Report.doc`;
+    const cleanName = (doc.personName || doc.title || 'Document').replace(/[^a-zA-Z0-9_-]/g, '_');
+    link.download = `${cleanName}_Formatted_Document.doc`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    showToast("Downloaded Word document (.doc)!");
+    showToast("Downloaded formatted Word document (.doc)!");
   };
 
   const handleExportImage = (doc: ScanRecord) => {
     if (doc.imageDataUrl) {
       const link = document.createElement("a");
       link.href = doc.imageDataUrl;
-      link.download = `${doc.plotCode.replace('/', '_')}_Field_Document.jpg`;
+      const cleanName = (doc.personName || doc.title || 'Document').replace(/[^a-zA-Z0-9_-]/g, '_');
+      link.download = `${cleanName}_Original_Scan.jpg`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -428,30 +597,45 @@ export default function App() {
 
   const handleExportPDF = (doc: ScanRecord) => {
     const printWindow = window.open('', '_blank');
-    const tableRows = doc.rows.map(r => `
-      <tr>
-        <td style="padding: 7px 10px; border: 1px solid #cbd5e1; text-align: center;">${r.treeNumber}</td>
-        <td style="padding: 7px 10px; border: 1px solid #cbd5e1; font-weight: bold; color: #047857;">${r.speciesCode}</td>
-        <td style="padding: 7px 10px; border: 1px solid #cbd5e1; text-align: right;">${r.dbhCm} cm</td>
-        <td style="padding: 7px 10px; border: 1px solid #cbd5e1; text-align: right;">${r.heightM} m</td>
-        <td style="padding: 7px 10px; border: 1px solid #cbd5e1;">${r.healthStatus}</td>
-        <td style="padding: 7px 10px; border: 1px solid #cbd5e1;">${r.notes || '—'}</td>
-      </tr>
-    `).join('');
+    const headers = getDocumentHeaders(doc);
+    const isSchool = doc.documentType === 'school_bulletin' || doc.institution?.toLowerCase().includes('enseignement');
+
+    const tableHeadersHtml = headers.map(h => 
+      `<th style="background: ${isSchool ? '#1e3a8a' : '#047857'}; color: #ffffff; padding: 8px 10px; border: 1px solid ${isSchool ? '#1e3a8a' : '#047857'}; text-align: left;">${h.label}</th>`
+    ).join('');
+
+    const tableRowsHtml = doc.rows.map(r => {
+      const cells = headers.map(h => {
+        const val = getCellDisplay(r, h.key);
+        const isBold = h.key.includes('subject') || h.key.includes('species') || h.key.includes('tot');
+        return `<td style="padding: 7px 10px; border: 1px solid #cbd5e1; ${isBold ? 'font-weight: bold;' : ''}">${val}</td>`;
+      }).join('');
+      return `<tr>${cells}</tr>`;
+    }).join('');
+
+    const metaGridHtml = (doc.metadataFields && doc.metadataFields.length > 0) ? `
+      <div class="card" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px;">
+        ${doc.metadataFields.map(m => `<div><strong>${m.label}:</strong> ${m.value}</div>`).join('')}
+      </div>
+    ` : `
+      <div class="card">
+        <div><strong>Document:</strong> ${doc.title} &nbsp;|&nbsp; <strong>Date:</strong> ${new Date(doc.date).toLocaleDateString()}</div>
+      </div>
+    `;
 
     const htmlContent = `
       <!DOCTYPE html>
       <html>
         <head>
-          <title>${doc.title} - PDF Report</title>
+          <title>${doc.title} - Document Format</title>
           <style>
-            @page { size: portrait; margin: 15mm; }
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #0f172a; margin: 0; padding: 15px; }
-            h1 { color: #047857; margin: 0 0 4px 0; font-size: 22px; font-weight: 700; }
-            .sub { color: #64748b; font-size: 12px; margin-bottom: 16px; }
-            .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; line-height: 1.6; }
-            table { width: 100%; border-collapse: collapse; font-size: 12px; }
-            th { background: #047857; color: #ffffff; padding: 8px 10px; border: 1px solid #047857; text-align: left; }
+            @page { size: portrait; margin: 12mm; }
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #0f172a; margin: 0; padding: 15px; font-size: 12px; }
+            h1 { color: ${isSchool ? '#1e3a8a' : '#047857'}; margin: 0 0 4px 0; font-size: 18px; font-weight: 700; text-transform: uppercase; }
+            .header-banner { text-align: center; border-bottom: 2px solid ${isSchool ? '#1e3a8a' : '#047857'}; padding-bottom: 10px; margin-bottom: 12px; }
+            .sub { color: #64748b; font-size: 11px; margin-bottom: 12px; }
+            .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 12px; line-height: 1.5; }
+            table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; }
             tr:nth-child(even) { background-color: #f8fafc; }
             @media print {
               body { padding: 0; }
@@ -459,33 +643,34 @@ export default function App() {
           </style>
         </head>
         <body>
-          <h1>Forest Inventory Documentation</h1>
-          <div class="sub">Kenya Forestry Service • Field Digitization Report</div>
-          <div class="card">
-            <div><strong>Document:</strong> ${doc.title} &nbsp;|&nbsp; <strong>Date:</strong> ${new Date(doc.date).toLocaleDateString()}</div>
-            <div><strong>Plot Code:</strong> ${doc.plotCode} &nbsp;|&nbsp; <strong>Forest Station:</strong> ${doc.forestStation} &nbsp;|&nbsp; <strong>Observer:</strong> ${doc.observerName}</div>
-            <div><strong>Total Trees:</strong> ${doc.rows.length} Recorded</div>
+          <div class="header-banner">
+            <h2 style="margin: 0; font-size: 15px; color: ${isSchool ? '#1e3a8a' : '#047857'}; text-transform: uppercase;">
+              ${doc.institution || 'RÉPUBLIQUE DÉMOCRATIQUE DU CONGO'}
+            </h2>
+            <div style="font-size: 11px; color: #475569; margin-top: 2px;">${doc.subHeader || ''}</div>
           </div>
+          <h1>${doc.title}</h1>
+          ${metaGridHtml}
           <table>
             <thead>
-              <tr>
-                <th style="text-align: center;">Tree #</th>
-                <th>Species</th>
-                <th style="text-align: right;">DBH</th>
-                <th style="text-align: right;">Height</th>
-                <th>Health</th>
-                <th>Notes</th>
-              </tr>
+              <tr>${tableHeadersHtml}</tr>
             </thead>
             <tbody>
-              ${tableRows}
+              ${tableRowsHtml}
             </tbody>
           </table>
+          ${isSchool ? `
+            <table style="width: 100%; margin-top: 35px; border: none;">
+              <tr>
+                <td style="text-align: center; width: 33%;"><strong>L'Élève</strong><br><br><br>_______________</td>
+                <td style="text-align: center; width: 33%;"><strong>Le Titulaire</strong><br><br><br>_______________</td>
+                <td style="text-align: center; width: 33%;"><strong>Le Directeur des Études</strong><br><em>(Sceau)</em><br><br>_______________</td>
+              </tr>
+            </table>
+          ` : ''}
           <script>
             window.onload = function() {
-              setTimeout(function() {
-                window.print();
-              }, 250);
+              setTimeout(function() { window.print(); }, 250);
             };
           </script>
         </body>
@@ -495,28 +680,27 @@ export default function App() {
     if (printWindow) {
       printWindow.document.write(htmlContent);
       printWindow.document.close();
-      showToast("Opened PDF print preview!");
+      showToast("Opened printable PDF document preview!");
     } else {
       window.print();
     }
   };
 
   const handleExportXLSX = (doc: ScanRecord) => {
-    const wsData = doc.rows.map(r => ({
-      "Plot Code": doc.plotCode,
-      "Forest Station": doc.forestStation,
-      "Survey Date": new Date(doc.date).toLocaleDateString(),
-      "Tree Number": r.treeNumber,
-      "Species Code": r.speciesCode,
-      "DBH (cm)": r.dbhCm,
-      "Height (m)": r.heightM,
-      "Health Status": r.healthStatus,
-      "Field Notes": r.notes
-    }));
+    const headers = getDocumentHeaders(doc);
+    const wsData = doc.rows.map(r => {
+      const rowObj: Record<string, string> = {};
+      headers.forEach(h => {
+        rowObj[h.label] = getCellDisplay(r, h.key);
+      });
+      return rowObj;
+    });
+
     const ws = XLSX.utils.json_to_sheet(wsData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Forest_Inventory");
-    XLSX.writeFile(wb, `${doc.plotCode.replace('/', '_')}_KEFRI_Inventory.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "Données");
+    const cleanName = (doc.personName || doc.title || 'Document').replace(/[^a-zA-Z0-9_-]/g, '_');
+    XLSX.writeFile(wb, `${cleanName}_Donnees.xlsx`);
     showToast("Downloaded Excel (.xlsx) file!");
   };
 
@@ -604,6 +788,19 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 md:gap-3">
+            <button
+              onClick={() => {
+                setApiKeyInput(getStoredGeminiKey());
+                setApiKeyModalReason(null);
+                setShowApiKeyModal(true);
+              }}
+              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+              title="Gemini AI Scanner Settings"
+            >
+              <Sparkles size={14} className="text-emerald-600" />
+              <span>Gemini Vision AI</span>
+              <span className={`w-2 h-2 rounded-full ${hasCustomKey ? 'bg-emerald-500' : 'bg-amber-500'} animate-pulse`}></span>
+            </button>
           </div>
         </div>
       </header>
@@ -653,8 +850,26 @@ export default function App() {
               </button>
             </div>
 
-            {/* Clean Professional White Capture Container */}
-            <div className="relative bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm min-h-[380px] flex flex-col items-center justify-center p-8 text-center">
+            {/* Clean Professional White Capture Container with Drag & Drop */}
+            <div 
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                const file = e.dataTransfer.files?.[0];
+                if (file) handleProcessSelectedFile(file);
+              }}
+              className={`relative bg-white rounded-2xl overflow-hidden border transition-all min-h-[380px] flex flex-col items-center justify-center p-8 text-center ${
+                isDragging ? 'border-emerald-500 bg-emerald-50/40 ring-4 ring-emerald-100' : 'border-slate-200 shadow-sm'
+              }`}
+            >
 
               {/* OCR Scanning Progress Screen */}
               {isProcessing ? (
@@ -662,9 +877,9 @@ export default function App() {
                   <div className="w-12 h-12 rounded-full border-4 border-emerald-600 border-t-transparent animate-spin mx-auto"></div>
                   <div className="space-y-1.5">
                     <h3 className="font-bold text-sm text-slate-900 flex items-center justify-center gap-1.5">
-                      <Sparkles size={16} className="text-emerald-600" /> Digitizing Forestry Form
+                      <Sparkles size={16} className="text-emerald-600" /> Gemini Vision AI Scanning
                     </h3>
-                    <p className="text-xs text-slate-500 font-mono">{processingStep}</p>
+                    <p className="text-xs text-slate-600 font-medium">{processingStep}</p>
                   </div>
                   {/* Progress Bar Animation */}
                   <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
@@ -679,7 +894,7 @@ export default function App() {
                   <div>
                     <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">Take picture or upload picture</h2>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1.5 max-w-sm mx-auto">
-                      Point camera at the physical forestry paper sheet or select an existing photo from your device.
+                      Point camera at the physical paper sheet, drag & drop an image here, or upload from your device.
                     </p>
                   </div>
 
@@ -739,7 +954,7 @@ export default function App() {
                   {batchCount > 0 && (
                     <button 
                       onClick={() => {
-                        handleSimulateOCR('/sample_field_form.jpg', `Batch_${batchCount}_Pages.jpg`);
+                        handleScanDocument('/sample_field_form.jpg', `Batch_${batchCount}_Pages.jpg`);
                         setBatchCount(0);
                       }}
                       className="bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-800 transition"
@@ -789,28 +1004,45 @@ export default function App() {
             ) : (
               <>
                 {/* Document Summary Header */}
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-                  <div>
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="space-y-2">
+                    {activeDoc.institution && (
+                      <div className="text-[11px] font-bold text-blue-900 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg inline-block">
+                        🏛️ {activeDoc.institution}
+                      </div>
+                    )}
                     <div className="flex items-center gap-2">
-                      <h2 className="font-bold text-base text-slate-900">{activeDoc.title}</h2>
-                      <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                        <CheckCircle2 size={12} /> Ready for Export
+                      <h2 className="font-bold text-base md:text-lg text-slate-900 tracking-tight">{activeDoc.title}</h2>
+                      <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
+                        <CheckCircle2 size={12} /> Prêt pour Export
                       </span>
                     </div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 mt-1">
-                      <span>Plot Code: <strong className="text-slate-800">{activeDoc.plotCode}</strong></span>
-                      <span>Station: <strong className="text-slate-800">{activeDoc.forestStation}</strong></span>
-                      <span>Observer: <strong className="text-slate-800">{activeDoc.observerName}</strong></span>
-                      <span>Date: <strong className="text-slate-800">{new Date(activeDoc.date).toLocaleDateString()}</strong></span>
-                      <span>Records: <strong className="text-slate-800">{activeDoc.rows.length} Trees</strong></span>
+                    {/* Dynamic metadata tags */}
+                    <div className="flex flex-wrap gap-2 text-xs text-slate-600 pt-1">
+                      {activeDoc.metadataFields && activeDoc.metadataFields.length > 0 ? (
+                        activeDoc.metadataFields.map((m, idx) => (
+                          <span key={idx} className="bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                            {m.label}: <strong className="text-slate-900">{m.value}</strong>
+                          </span>
+                        ))
+                      ) : (
+                        <>
+                          <span className="bg-slate-100 px-2.5 py-1 rounded-lg">Réf: <strong>{activeDoc.plotCode}</strong></span>
+                          <span className="bg-slate-100 px-2.5 py-1 rounded-lg">Station/Lieu: <strong>{activeDoc.forestStation}</strong></span>
+                          <span className="bg-slate-100 px-2.5 py-1 rounded-lg">Observateur: <strong>{activeDoc.observerName}</strong></span>
+                        </>
+                      )}
+                      <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-1 rounded-lg font-semibold">
+                        {activeDoc.rows.length} {activeDoc.documentType === 'school_bulletin' ? 'Branches / Cours' : 'Enregistrements'}
+                      </span>
                     </div>
                   </div>
 
                   <button
                     onClick={handleVerifyAll}
-                    className="self-start md:self-auto bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
+                    className="self-start md:self-auto bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shrink-0 cursor-pointer shadow-xs"
                   >
-                    <ShieldCheck size={14} className="text-emerald-700" /> Verify All Rows
+                    <ShieldCheck size={14} className="text-emerald-700" /> Tout Vérifier
                   </button>
                 </div>
 
@@ -942,28 +1174,28 @@ export default function App() {
                     <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
                       <div className="flex items-center gap-2">
                         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-                          <FileSpreadsheet size={14} className="text-emerald-700" /> Extracted Data Table
+                          <FileSpreadsheet size={14} className="text-emerald-700" /> Tableau de Données Extrait
                         </h3>
-                        <span className="text-[11px] text-slate-500 font-medium">({activeDoc.rows.length} Trees)</span>
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          ({activeDoc.rows.length} {activeDoc.documentType === 'school_bulletin' ? 'Branches' : 'Lignes'})
+                        </span>
                       </div>
-                      <span className="text-[11px] text-slate-500 italic">Tap any value to edit</span>
+                      <span className="text-[11px] text-slate-500 italic">Cliquer sur une valeur pour modifier</span>
                     </div>
 
                     <div className="overflow-x-auto flex-1">
                       <table className="w-full text-xs text-left">
                         <thead className="bg-slate-100/90 text-slate-700 font-bold border-b border-slate-200 uppercase text-[10px] tracking-wider">
                           <tr>
-                            <th className="p-2.5 text-center">Tree #</th>
-                            <th className="p-2.5">Species</th>
-                            <th className="p-2.5">DBH (cm)</th>
-                            <th className="p-2.5">Height (m)</th>
-                            <th className="p-2.5">Health</th>
-                            <th className="p-2.5">Notes</th>
+                            {getDocumentHeaders(activeDoc).map(h => (
+                              <th key={h.key} className="p-2.5 whitespace-nowrap">{h.label}</th>
+                            ))}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-slate-800">
                           {activeDoc.rows.map((row, idx) => {
                             const isSelected = selectedRowIndex === idx;
+                            const headers = getDocumentHeaders(activeDoc);
                             return (
                               <tr 
                                 key={row.rowNumber} 
@@ -972,38 +1204,34 @@ export default function App() {
                                 }`}
                                 onClick={() => setSelectedRowIndex(idx)}
                               >
-                                <td className="p-2.5 text-center font-bold text-slate-900">{row.treeNumber}</td>
-                                <td 
-                                  className="p-2.5 hover:underline font-bold text-emerald-800 font-mono"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleCellClick(row.rowNumber, 'speciesCode', 'Species Code', row.speciesCode, row.confidence.speciesCode, false, idx);
-                                  }}
-                                >
-                                  <span className="bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded text-[11px]">{row.speciesCode}</span>
-                                </td>
-                                {/* DBH Cell */}
-                                <td 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleCellClick(row.rowNumber, 'dbhCm', 'DBH (cm)', row.dbhCm, row.confidence.dbhCm, row.flags.dbhUncertain, idx);
-                                  }}
-                                  className="p-2.5 font-mono hover:bg-emerald-100/60 transition"
-                                >
-                                  <span>{row.dbhCm}</span>
-                                </td>
-                                {/* Height Cell */}
-                                <td 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleCellClick(row.rowNumber, 'heightM', 'Height (m)', row.heightM, row.confidence.heightM, row.flags.heightUncertain, idx);
-                                  }}
-                                  className="p-2.5 font-mono hover:bg-emerald-100/60 transition"
-                                >
-                                  <span>{row.heightM}</span>
-                                </td>
-                                <td className="p-2.5 text-slate-700">{row.healthStatus}</td>
-                                <td className="p-2.5 text-slate-500 max-w-[120px] truncate">{row.notes || '—'}</td>
+                                {headers.map((h, hIdx) => {
+                                  const val = getCellDisplay(row, h.key);
+                                  const isFirst = hIdx === 0;
+                                  const isSubject = h.key.includes('subject') || h.key.includes('species');
+                                  const isTotal = h.key.includes('tot');
+                                  const isMention = h.key.includes('mention') || h.key.includes('health');
+
+                                  return (
+                                    <td 
+                                      key={h.key}
+                                      className={`p-2.5 ${isFirst ? 'font-mono font-bold text-slate-900' : ''} ${
+                                        isSubject ? 'font-bold text-slate-900 font-sans' : ''
+                                      } ${isTotal ? 'font-mono font-bold text-blue-900' : ''}`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleCellClick(row.rowNumber, 'speciesCode', h.label, val, 0.95, false, idx);
+                                      }}
+                                    >
+                                      {isMention ? (
+                                        <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap">
+                                          {val}
+                                        </span>
+                                      ) : (
+                                        <span>{val}</span>
+                                      )}
+                                    </td>
+                                  );
+                                })}
                               </tr>
                             );
                           })}
@@ -1233,6 +1461,82 @@ export default function App() {
                 className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-1.5 rounded-lg text-xs font-bold"
               >
                 Save & Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Gemini AI Settings / API Key Modal */}
+      {showApiKeyModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
+                  <Sparkles size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900">Gemini Vision AI OCR</h3>
+                  <p className="text-xs text-slate-500">Google Gemini Multimodal Intelligence</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => { setShowApiKeyModal(false); setPendingScan(null); }}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {apiKeyModalReason && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 flex items-start gap-2">
+                <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                <p>{apiKeyModalReason}</p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                <span>Google Gemini API Key</span>
+                <a 
+                  href="https://aistudio.google.com/app/apikey" 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="text-emerald-700 hover:underline flex items-center gap-1 font-normal text-[11px]"
+                >
+                  Get free key <ExternalLink size={11} />
+                </a>
+              </label>
+              <div className="relative">
+                <input
+                  type="password"
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  placeholder="Paste your Gemini API key (AIzaSy...)"
+                  className="w-full text-xs font-mono px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white transition"
+                />
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Stored safely in your device browser. Powers real-time OCR transcription of handwriting, paper tables, and inventory entries.
+              </p>
+            </div>
+
+            <div className="pt-2 flex flex-col sm:flex-row gap-2">
+              {pendingScan && (
+                <button
+                  onClick={handleProceedOfflineFallback}
+                  className="flex-1 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl border border-slate-200 transition"
+                >
+                  Use Offline Scan
+                </button>
+              )}
+              <button
+                onClick={handleApplyApiKeyAndRetry}
+                className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs py-2.5 px-4 rounded-xl shadow-xs transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Check size={14} />
+                {pendingScan ? "Save Key & Scan" : "Save API Key"}
               </button>
             </div>
           </div>

@@ -1,8 +1,25 @@
 import Dexie, { type Table } from 'dexie';
 
+export interface DocumentHeaderColumn {
+  key: string;
+  label: string;
+}
+
+export interface DocumentMetadataItem {
+  label: string;
+  value: string;
+}
+
 export interface ScanRecord {
   id: string;
   title: string;
+  documentType?: 'school_bulletin' | 'forestry_inventory' | 'tabular_form' | 'general_document';
+  institution?: string;
+  subHeader?: string;
+  personName?: string;
+  idNumber?: string;
+  metadataFields?: DocumentMetadataItem[];
+  tableHeaders?: DocumentHeaderColumn[];
   plotCode: string;
   forestStation: string;
   observerName: string;
@@ -20,6 +37,8 @@ export interface ScanRecord {
     heightM: string;
     healthStatus: string;
     notes: string;
+    // Dynamic values for any document type (e.g. col1, col2, etc.)
+    cells?: Record<string, string>;
     confidence: {
       treeNumber: number;
       speciesCode: number;
