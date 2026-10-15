@@ -43,17 +43,10 @@ fun CameraViewfinder(
             .fillMaxWidth()
             .height(370.dp)
             .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFF0F172A))
+            .background(Color.White)
             .border(1.dp, HairlineBorder, RoundedCornerShape(18.dp))
             .testTag("camera_viewfinder")
     ) {
-        // Clean dark viewfinder background
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFF0F172A))
-        )
-
         // Center card with explicit 'Take picture or upload picture' prompt
         Column(
             modifier = Modifier
@@ -65,14 +58,14 @@ fun CameraViewfinder(
                 modifier = Modifier
                     .size(56.dp)
                     .clip(CircleShape)
-                    .background(Color(0x2210B981))
-                    .border(1.5.dp, Color(0xFF10B981), CircleShape),
+                    .background(BrandEmeraldLight)
+                    .border(1.5.dp, BrandEmerald, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     Icons.Outlined.CameraAlt,
                     contentDescription = null,
-                    tint = Color(0xFF10B981),
+                    tint = BrandEmerald,
                     modifier = Modifier.size(28.dp)
                 )
             }
@@ -81,54 +74,18 @@ fun CameraViewfinder(
                 text = "Take picture or upload picture",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = TextPrimary,
                 fontSize = 17.sp,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Position KEFRI paper sheet inside reticle or select from gallery",
+                text = "Point camera at forestry paper sheet or select from gallery",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF94A3B8),
+                color = TextSecondary,
                 fontSize = 12.sp,
                 textAlign = TextAlign.Center
             )
-        }
-
-        // Ultra-crisp corner reticle guides (Emil Kowalski precision style)
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val padding = 34.dp.toPx()
-            val bracketLen = 36.dp.toPx()
-            val strokeW = 3.dp.toPx()
-            val reticleColor = Color(0xFF10B981) // Crisp modern emerald
-
-            val left = padding
-            val top = padding + 12.dp.toPx()
-            val right = size.width - padding
-            val bottom = size.height - padding - 28.dp.toPx()
-
-            // Top-Left bracket
-            drawLine(reticleColor, Offset(left, top), Offset(left + bracketLen, top), strokeW, StrokeCap.Round)
-            drawLine(reticleColor, Offset(left, top), Offset(left, top + bracketLen), strokeW, StrokeCap.Round)
-
-            // Top-Right bracket
-            drawLine(reticleColor, Offset(right, top), Offset(right - bracketLen, top), strokeW, StrokeCap.Round)
-            drawLine(reticleColor, Offset(right, top), Offset(right, top + bracketLen), strokeW, StrokeCap.Round)
-
-            // Bottom-Left bracket
-            drawLine(reticleColor, Offset(left, bottom), Offset(left + bracketLen, bottom), strokeW, StrokeCap.Round)
-            drawLine(reticleColor, Offset(left, bottom), Offset(left, bottom - bracketLen), strokeW, StrokeCap.Round)
-
-            // Bottom-Right bracket
-            drawLine(reticleColor, Offset(right, bottom), Offset(right - bracketLen, bottom), strokeW, StrokeCap.Round)
-            drawLine(reticleColor, Offset(right, bottom), Offset(right, bottom - bracketLen), strokeW, StrokeCap.Round)
-
-            // Subtle center grid crosshair for alignment
-            val midX = (left + right) / 2f
-            val midY = (top + bottom) / 2f
-            val crosshairLen = 10.dp.toPx()
-            drawLine(Color(0x6610B981), Offset(midX - crosshairLen, midY), Offset(midX + crosshairLen, midY), 1.5f, StrokeCap.Round)
-            drawLine(Color(0x6610B981), Offset(midX, midY - crosshairLen), Offset(midX, midY + crosshairLen), 1.5f, StrokeCap.Round)
         }
 
         // Top Status Bar: Minimal pill & Torch toggle
@@ -141,9 +98,9 @@ fun CameraViewfinder(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
-                color = Color(0xCC0F172A),
+                color = SurfaceSubtle,
                 shape = RoundedCornerShape(20.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x33FFFFFF))
+                border = androidx.compose.foundation.BorderStroke(1.dp, HairlineBorder)
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -153,13 +110,13 @@ fun CameraViewfinder(
                         modifier = Modifier
                             .size(7.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF10B981))
+                            .background(BrandEmerald)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (isBatchMode) "Batch • Page ${batchCount + 1}" else "Position paper inside reticle",
+                        text = if (isBatchMode) "Batch • Page ${batchCount + 1}" else "Position paper inside view",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.White,
+                        color = TextSecondary,
                         fontWeight = FontWeight.Medium,
                         fontSize = 11.sp
                     )
@@ -172,14 +129,14 @@ fun CameraViewfinder(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(if (isTorchOn) Color.White else Color(0x880F172A))
-                    .border(1.dp, Color(0x33FFFFFF), CircleShape)
+                    .background(if (isTorchOn) BrandEmeraldLight else SurfaceSubtle)
+                    .border(1.dp, HairlineBorder, CircleShape)
                     .testTag("torch_toggle_btn")
             ) {
                 Icon(
                     imageVector = if (isTorchOn) Icons.Default.FlashOn else Icons.Default.FlashOff,
                     contentDescription = "Toggle Torch",
-                    tint = if (isTorchOn) Color(0xFF0F172A) else Color.White,
+                    tint = if (isTorchOn) BrandEmerald else TextSecondary,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -200,14 +157,14 @@ fun CameraViewfinder(
                 modifier = Modifier
                     .size(46.dp)
                     .clip(CircleShape)
-                    .background(Color(0x990F172A))
-                    .border(1.dp, Color(0x33FFFFFF), CircleShape)
+                    .background(SurfaceSubtle)
+                    .border(1.dp, HairlineBorder, CircleShape)
                     .testTag("gallery_picker_btn")
             ) {
                 Icon(
                     Icons.Outlined.PhotoLibrary,
                     contentDescription = "Pick from gallery",
-                    tint = Color.White,
+                    tint = TextPrimary,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -217,7 +174,7 @@ fun CameraViewfinder(
                 modifier = Modifier
                     .size(66.dp)
                     .clip(CircleShape)
-                    .background(Color(0x44FFFFFF))
+                    .background(BrandEmeraldLight)
                     .clickable { onCaptureClick() }
                     .testTag("shutter_capture_btn"),
                 contentAlignment = Alignment.Center
@@ -245,14 +202,14 @@ fun CameraViewfinder(
                 modifier = Modifier
                     .size(46.dp)
                     .clip(CircleShape)
-                    .background(Color(0x990F172A))
-                    .border(1.dp, Color(0x33FFFFFF), CircleShape)
+                    .background(BrandEmeraldLight)
+                    .border(1.dp, HairlineBorder, CircleShape)
                     .testTag("upload_picture_btn")
             ) {
                 Icon(
                     Icons.Outlined.UploadFile,
                     contentDescription = "Upload picture",
-                    tint = Color(0xFF10B981),
+                    tint = BrandEmerald,
                     modifier = Modifier.size(20.dp)
                 )
             }

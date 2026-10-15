@@ -604,16 +604,6 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 md:gap-3">
-            {/* APK Download Button for Android Users */}
-            <a 
-              href="/kfs-inventory-scan.apk" 
-              download="kfs-inventory-scan.apk"
-              className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition active:scale-95"
-              title="Download compiled Android APK to install on phone"
-            >
-              <Smartphone size={14} className="text-emerald-200" />
-              <span>Get Phone App (APK)</span>
-            </a>
           </div>
         </div>
       </header>
@@ -663,56 +653,32 @@ export default function App() {
               </button>
             </div>
 
-            {/* Viewfinder Guide & Capture Container */}
-            <div className="relative bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 shadow-xl min-h-[380px] flex flex-col items-center justify-center p-6 text-white text-center">
-              {/* Clean dark gradient background - NO static paper image */}
-              <div className="absolute inset-0 bg-gradient-to-b from-slate-900/60 via-slate-950 to-slate-900/80 pointer-events-none" />
-
-              {/* Reticle Alignment Brackets */}
-              <div className="absolute top-6 left-6 w-10 h-10 border-t-3 border-l-3 border-emerald-400 rounded-tl-lg pointer-events-none"></div>
-              <div className="absolute top-6 right-6 w-10 h-10 border-t-3 border-r-3 border-emerald-400 rounded-tr-lg pointer-events-none"></div>
-              <div className="absolute bottom-6 left-6 w-10 h-10 border-b-3 border-l-3 border-emerald-400 rounded-bl-lg pointer-events-none"></div>
-              <div className="absolute bottom-6 right-6 w-10 h-10 border-b-3 border-r-3 border-emerald-400 rounded-br-lg pointer-events-none"></div>
-
-              {/* Grid guide overlay */}
-              <div className="absolute inset-x-10 inset-y-14 border border-emerald-500/20 rounded pointer-events-none grid grid-rows-4 divide-y divide-emerald-500/10">
-                <div className="flex items-center justify-between px-3 text-[10px] text-emerald-400/60 font-mono">
-                  <span>HEADER / PLOT #</span>
-                  <span>KEFRI FORM</span>
-                </div>
-                <div className="flex items-center justify-center text-[10px] text-emerald-400/40 font-mono">
-                  TREE # • SPECIES • DBH (CM) • HEIGHT (M)
-                </div>
-                <div></div>
-                <div className="flex items-end justify-between p-2 text-[10px] text-emerald-400/40 font-mono">
-                  <span>CANOPY STATUS</span>
-                  <span>FOOTER OBSERVER</span>
-                </div>
-              </div>
+            {/* Clean Professional White Capture Container */}
+            <div className="relative bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm min-h-[380px] flex flex-col items-center justify-center p-8 text-center">
 
               {/* OCR Scanning Progress Screen */}
               {isProcessing ? (
-                <div className="relative z-20 space-y-4 max-w-md mx-auto p-6 bg-slate-900/90 backdrop-blur-md rounded-xl border border-emerald-500/30">
-                  <div className="w-12 h-12 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin mx-auto"></div>
-                  <div className="space-y-2">
-                    <h3 className="font-bold text-sm text-emerald-400 flex items-center justify-center gap-1.5">
-                      <Sparkles size={16} /> Digitizing Forestry Form
+                <div className="relative z-20 space-y-4 max-w-sm mx-auto p-6 bg-slate-50 rounded-2xl border border-slate-200 shadow-sm">
+                  <div className="w-12 h-12 rounded-full border-4 border-emerald-600 border-t-transparent animate-spin mx-auto"></div>
+                  <div className="space-y-1.5">
+                    <h3 className="font-bold text-sm text-slate-900 flex items-center justify-center gap-1.5">
+                      <Sparkles size={16} className="text-emerald-600" /> Digitizing Forestry Form
                     </h3>
-                    <p className="text-xs text-slate-300 font-mono">{processingStep}</p>
+                    <p className="text-xs text-slate-500 font-mono">{processingStep}</p>
                   </div>
-                  {/* Laser Scan Bar Animation */}
-                  <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                    <div className="bg-emerald-400 h-full w-2/3 animate-pulse rounded-full"></div>
+                  {/* Progress Bar Animation */}
+                  <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                    <div className="bg-emerald-600 h-full w-2/3 animate-pulse rounded-full"></div>
                   </div>
                 </div>
               ) : (
                 <div className="relative z-10 space-y-4 max-w-md">
-                  <div className="w-14 h-14 bg-emerald-950/80 border border-emerald-500/40 rounded-2xl flex items-center justify-center text-emerald-400 mx-auto shadow-inner">
-                    <Camera size={28} />
+                  <div className="w-16 h-16 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-center text-emerald-700 mx-auto shadow-xs">
+                    <Camera size={30} />
                   </div>
                   <div>
-                    <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">Take picture or upload picture</h2>
-                    <p className="text-xs text-slate-300 mt-1 max-w-xs mx-auto">
+                    <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">Take picture or upload picture</h2>
+                    <p className="text-xs sm:text-sm text-slate-500 mt-1.5 max-w-sm mx-auto">
                       Point camera at the physical forestry paper sheet or select an existing photo from your device.
                     </p>
                   </div>
@@ -722,7 +688,7 @@ export default function App() {
                     {/* Camera Button */}
                     <button
                       onClick={() => cameraInputRef.current?.click()}
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-lg transition active:scale-95 cursor-pointer"
+                      className="bg-emerald-700 hover:bg-emerald-800 text-white px-6 py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 shadow-sm transition active:scale-95 cursor-pointer"
                     >
                       <Camera size={16} /> Take Picture
                     </button>
@@ -730,7 +696,7 @@ export default function App() {
                     {/* Upload File Button */}
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition active:scale-95 cursor-pointer"
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 px-6 py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition active:scale-95 cursor-pointer"
                     >
                       <Upload size={16} /> Upload Picture
                     </button>
@@ -1158,28 +1124,6 @@ export default function App() {
                 ))}
               </div>
             )}
-
-            {/* Offline APK Banner for Mobile Install */}
-            <div className="pt-4 border-t border-slate-200">
-              <div className="bg-gradient-to-r from-emerald-900 to-emerald-800 text-white rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="inline-flex items-center gap-1.5 bg-emerald-700/60 text-emerald-200 text-xs px-2.5 py-0.5 rounded-full font-semibold">
-                    <Smartphone size={13} /> Standalone Phone App
-                  </div>
-                  <h3 className="text-sm font-bold">Install Offline Android App</h3>
-                  <p className="text-xs text-emerald-100 max-w-md">
-                    Need to digitize in remote forests without internet? Install the native APK on your Android phone.
-                  </p>
-                </div>
-                <a
-                  href="/kfs-inventory-scan.apk"
-                  download="kfs-inventory-scan.apk"
-                  className="bg-white hover:bg-emerald-50 text-emerald-950 px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 shadow transition active:scale-95 flex-shrink-0"
-                >
-                  <Download size={14} /> Download APK
-                </a>
-              </div>
-            </div>
           </div>
         )}
       </main>
