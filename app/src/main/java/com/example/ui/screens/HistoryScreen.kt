@@ -45,18 +45,10 @@ fun HistoryScreen(
     val exportModalText by viewModel.exportModalText.collectAsState()
 
     val filteredDocs = documents.filter { doc ->
-        val matchesSearch = doc.title.contains(searchQuery, ignoreCase = true) ||
+        doc.title.contains(searchQuery, ignoreCase = true) ||
                 doc.plotCode.contains(searchQuery, ignoreCase = true) ||
                 doc.forestStation.contains(searchQuery, ignoreCase = true) ||
                 doc.observerName.contains(searchQuery, ignoreCase = true)
-
-        val matchesFilter = when (historyFilter) {
-            "NEEDS_REVIEW" -> !doc.isVerified || doc.totalUncertainCells > 0
-            "VERIFIED" -> doc.isVerified
-            "OFFLINE" -> doc.syncStatus == SyncStatus.SAVED_OFFLINE
-            else -> true
-        }
-        matchesSearch && matchesFilter
     }
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -84,151 +76,46 @@ fun HistoryScreen(
                 }
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "Historical Forest Inventory Surveys & Scans",
+                    text = "Saved Forest Inventory Surveys & Scans",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                if (documents.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                // Search Bar
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { viewModel.setSearchQuery(it) },
-                    placeholder = { Text("Search by Plot ID, station, or technician...", fontSize = 13.sp, color = TextMuted) },
-                    leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp)) },
-                    trailingIcon = {
-                        if (searchQuery.isNotBlank()) {
-                            IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                                Icon(Icons.Default.Clear, contentDescription = "Clear search", tint = TextSecondary, modifier = Modifier.size(16.dp))
+                    // Search Bar
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { viewModel.setSearchQuery(it) },
+                        placeholder = { Text("Search by Plot ID, station, or technician...", fontSize = 13.sp, color = TextMuted) },
+                        leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp)) },
+                        trailingIcon = {
+                            if (searchQuery.isNotBlank()) {
+                                IconButton(onClick = { viewModel.setSearchQuery("") }) {
+                                    Icon(Icons.Default.Clear, contentDescription = "Clear search", tint = TextSecondary, modifier = Modifier.size(16.dp))
+                                }
                             }
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("search_history_input"),
-                    singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = SurfaceCard,
-                        unfocusedContainerColor = SurfaceSubtle,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        focusedBorderColor = BrandEmerald,
-                        unfocusedBorderColor = HairlineBorder
-                    )
-                )
-            }
-        }
-
-        // Offline / Auto-Sync Status Banner
-        Surface(
-            color = if (isOffline) FlagAmberBg else SurfaceCard,
-            border = androidx.compose.foundation.BorderStroke(
-                1.dp,
-                if (isOffline) FlagAmberBorder else HairlineBorder
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
+                        },
                         modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(if (isOffline) FlagAmber else BrandEmerald)
+                            .fillMaxWidth()
+                            .testTag("search_history_input"),
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = SurfaceCard,
+                            unfocusedContainerColor = SurfaceSubtle,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = BrandEmerald,
+                            unfocusedBorderColor = HairlineBorder
+                        )
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column {
-                        Text(
-                            text = if (isOffline) "Offline Field Mode" else "Cloud Sync Connected",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (isOffline) FlagAmberText else TextPrimary
-                        )
-                        Text(
-                            text = if (isOffline) {
-                                "Scans saved locally; auto-syncs when online"
-                            } else {
-                                "All field records synced to KEFRI database"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            fontSize = 11.sp,
-                            color = TextSecondary
-                        )
-                    }
-                }
-
-                FilledTonalButton(
-                    onClick = {
-                        if (isOffline) {
-                            viewModel.toggleOffline()
-                            Toast.makeText(context, "Reconnected to network", Toast.LENGTH_SHORT).show()
-                        }
-                        viewModel.syncAll()
-                    },
-                    enabled = !isSyncing,
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = if (isOffline) FlagAmber else BrandEmeraldLight,
-                        contentColor = if (isOffline) Color.White else BrandEmeraldDark
-                    ),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                    modifier = Modifier.testTag("sync_now_btn")
-                ) {
-                    if (isSyncing) {
-                        CircularProgressIndicator(modifier = Modifier.size(13.dp), strokeWidth = 2.dp, color = BrandEmerald)
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Text("Syncing...", fontSize = 11.sp)
-                    } else {
-                        Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(13.dp))
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Text("Sync Now", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                    }
                 }
             }
         }
 
-        // Filter Chips Bar
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            HistoryFilterChip(
-                label = "All (${documents.size})",
-                isSelected = historyFilter == "ALL",
-                onClick = { viewModel.setHistoryFilter("ALL") }
-            )
-            HistoryFilterChip(
-                label = "Needs Review",
-                isSelected = historyFilter == "NEEDS_REVIEW",
-                onClick = { viewModel.setHistoryFilter("NEEDS_REVIEW") }
-            )
-            HistoryFilterChip(
-                label = "Verified",
-                isSelected = historyFilter == "VERIFIED",
-                onClick = { viewModel.setHistoryFilter("VERIFIED") }
-            )
-            HistoryFilterChip(
-                label = "Offline",
-                isSelected = historyFilter == "OFFLINE",
-                onClick = { viewModel.setHistoryFilter("OFFLINE") }
-            )
-        }
+        Spacer(modifier = Modifier.height(8.dp))
 
         // Document List
         if (filteredDocs.isEmpty()) {
@@ -239,23 +126,49 @@ fun HistoryScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Outlined.FolderOpen,
-                        contentDescription = null,
-                        tint = TextMuted,
-                        modifier = Modifier.size(44.dp)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(CircleShape)
+                            .background(BrandEmeraldLight),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Outlined.DocumentScanner,
+                            contentDescription = null,
+                            tint = BrandEmerald,
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "No matching documents",
-                        style = MaterialTheme.typography.titleSmall,
+                        text = if (documents.isEmpty()) "No Scanned Documents Yet" else "No matching documents",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
                         color = TextPrimary
                     )
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Adjust your search query or scan a new inventory form.",
+                        text = if (documents.isEmpty())
+                            "Take a picture or upload a paper form in the Scan tab to save it here."
+                        else
+                            "Try searching for a different plot code or station name.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary
+                        color = TextSecondary,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
+                    if (documents.isEmpty()) {
+                        Spacer(modifier = Modifier.height(20.dp))
+                        Button(
+                            onClick = { viewModel.selectTab(0) },
+                            colors = ButtonDefaults.buttonColors(containerColor = BrandEmerald),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Scan Document", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                 }
             }
         } else {

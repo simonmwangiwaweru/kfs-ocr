@@ -98,38 +98,6 @@ fun ScanScreen(
                             color = TextSecondary
                         )
                     }
-
-                    // Network Sync Pill Button
-                    Surface(
-                        color = if (isOffline) FlagAmberBg else BrandEmeraldLight,
-                        shape = RoundedCornerShape(20.dp),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (isOffline) FlagAmberBorder else BrandEmeraldBorder
-                        ),
-                        modifier = Modifier
-                            .clickable { viewModel.toggleOffline() }
-                            .testTag("toggle_offline_chip")
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = if (isOffline) Icons.Default.CloudOff else Icons.Default.CloudDone,
-                                contentDescription = null,
-                                tint = if (isOffline) FlagAmberText else BrandEmerald,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (isOffline) "Offline" else "Synced",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (isOffline) FlagAmberText else BrandEmerald
-                            )
-                        }
-                    }
                 }
             }
         }

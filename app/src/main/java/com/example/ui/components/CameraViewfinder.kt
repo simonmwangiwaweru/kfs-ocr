@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -46,21 +47,53 @@ fun CameraViewfinder(
             .border(1.dp, HairlineBorder, RoundedCornerShape(18.dp))
             .testTag("camera_viewfinder")
     ) {
-        // High-res preview
-        AsyncImage(
-            model = R.drawable.sample_field_form,
-            contentDescription = "Camera viewfinder preview",
-            contentScale = ContentScale.Crop,
-            alpha = if (isTorchOn) 0.98f else 0.82f,
-            modifier = Modifier.fillMaxSize()
-        )
-
-        // Darkened glass vignette
+        // Clean dark viewfinder background
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0x350F172A))
+                .background(Color(0xFF0F172A))
         )
+
+        // Center card with explicit 'Take picture or upload picture' prompt
+        Column(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x2210B981))
+                    .border(1.5.dp, Color(0xFF10B981), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Outlined.CameraAlt,
+                    contentDescription = null,
+                    tint = Color(0xFF10B981),
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "Take picture or upload picture",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                fontSize = 17.sp,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Position KEFRI paper sheet inside reticle or select from gallery",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF94A3B8),
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center
+            )
+        }
 
         // Ultra-crisp corner reticle guides (Emil Kowalski precision style)
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -206,19 +239,19 @@ fun CameraViewfinder(
                 }
             }
 
-            // Sample Paper Demo Loader
+            // Upload File / Gallery Button
             IconButton(
-                onClick = onLoadSampleClick,
+                onClick = onGalleryClick,
                 modifier = Modifier
                     .size(46.dp)
                     .clip(CircleShape)
                     .background(Color(0x990F172A))
                     .border(1.dp, Color(0x33FFFFFF), CircleShape)
-                    .testTag("load_sample_btn")
+                    .testTag("upload_picture_btn")
             ) {
                 Icon(
-                    Icons.Outlined.Description,
-                    contentDescription = "Load demo form",
+                    Icons.Outlined.UploadFile,
+                    contentDescription = "Upload picture",
                     tint = Color(0xFF10B981),
                     modifier = Modifier.size(20.dp)
                 )

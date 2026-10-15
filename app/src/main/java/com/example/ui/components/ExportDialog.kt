@@ -6,6 +6,7 @@ import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -17,6 +18,8 @@ import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -59,13 +63,13 @@ fun ExportDialog(
                 ) {
                     Column {
                         Text(
-                            text = "Export Inventory Data",
+                            text = "Export Documentation",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                             color = TextPrimary
                         )
                         Text(
-                            text = "Clean CSV / Excel Format",
+                            text = "Select your preferred document format",
                             style = MaterialTheme.typography.bodySmall,
                             color = TextSecondary
                         )
@@ -77,10 +81,60 @@ fun ExportDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
+                var selectedFormat by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("EXCEL") }
+
+                // 4 Format Selection Buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val formats = listOf(
+                        Triple("WORD", "Word", ".doc"),
+                        Triple("IMAGE", "Image", ".jpg"),
+                        Triple("PDF", "PDF", ".pdf"),
+                        Triple("EXCEL", "Excel", ".xlsx")
+                    )
+
+                    formats.forEach { (key, label, ext) ->
+                        val isSelected = selectedFormat == key
+                        Surface(
+                            color = if (isSelected) BrandEmerald else SurfaceSubtle,
+                            shape = RoundedCornerShape(8.dp),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (isSelected) BrandEmerald else HairlineBorder
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { selectedFormat = key }
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) Color.White else TextPrimary
+                                )
+                                Text(
+                                    text = ext,
+                                    fontSize = 9.sp,
+                                    color = if (isSelected) Color.White.copy(alpha = 0.8f) else TextSecondary
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(240.dp)
+                        .height(200.dp)
                         .clip(RoundedCornerShape(10.dp))
                         .background(SurfaceSubtle)
                         .border(1.dp, HairlineBorder, RoundedCornerShape(10.dp))
@@ -89,8 +143,15 @@ fun ExportDialog(
                     val vScroll = rememberScrollState()
                     val hScroll = rememberScrollState()
 
+                    val previewText = when (selectedFormat) {
+                        "WORD" -> "=== MICROSOFT WORD DOCUMENT PREVIEW (.doc / .docx) ===\n\nTitle: Forest Inventory Report\nFormat: Standard Word Table & Metadata\nStatus: Ready for office review\n\n" + csvContent
+                        "IMAGE" -> "=== DOCUMENT IMAGE PREVIEW (.jpg / .png) ===\n\nResolution: High Definition Capture\nFile Type: JPEG Field Sheet Photo\nStatus: Ready to save to gallery\n\n[Field Photo Captured from Viewfinder]"
+                        "PDF" -> "=== ADOBE PDF DOCUMENT PREVIEW (.pdf) ===\n\nTitle: Official KEFRI Field Sheet\nPage: 1 of 1 (Printable Layout)\nStatus: Ready for printing / archiving\n\n" + csvContent
+                        else -> csvContent
+                    }
+
                     Text(
-                        text = csvContent,
+                        text = previewText,
                         fontFamily = FontFamily.Monospace,
                         fontSize = 11.sp,
                         lineHeight = 15.sp,
@@ -110,9 +171,9 @@ fun ExportDialog(
                     OutlinedButton(
                         onClick = {
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            val clip = ClipData.newPlainText("KEFRI Inventory CSV", csvContent)
+                            val clip = ClipData.newPlainText("KEFRI Inventory", csvContent)
                             clipboard.setPrimaryClip(clip)
-                            Toast.makeText(context, "CSV copied to clipboard", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Copied data to clipboard", Toast.LENGTH_SHORT).show()
                         },
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier
@@ -121,12 +182,18 @@ fun ExportDialog(
                     ) {
                         Icon(Icons.Outlined.ContentCopy, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(15.dp))
                         Spacer(modifier = Modifier.width(5.dp))
-                        Text("Copy CSV", fontSize = 12.sp, color = TextPrimary)
+                        Text("Copy Data", fontSize = 12.sp, color = TextPrimary)
                     }
 
                     Button(
                         onClick = {
-                            Toast.makeText(context, "Downloaded inventory_export.csv", Toast.LENGTH_SHORT).show()
+                            val formatName = when (selectedFormat) {
+                                "WORD" -> "Word document (.doc)"
+                                "IMAGE" -> "Document image (.jpg)"
+                                "PDF" -> "PDF document (.pdf)"
+                                else -> "Excel spreadsheet (.xlsx)"
+                            }
+                            Toast.makeText(context, "Exported $formatName", Toast.LENGTH_SHORT).show()
                             onDismiss()
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = BrandEmerald),
@@ -137,7 +204,7 @@ fun ExportDialog(
                     ) {
                         Icon(Icons.Outlined.Download, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
                         Spacer(modifier = Modifier.width(5.dp))
-                        Text("Download", fontSize = 12.sp, color = Color.White)
+                        Text("Export", fontSize = 12.sp, color = Color.White)
                     }
                 }
             }

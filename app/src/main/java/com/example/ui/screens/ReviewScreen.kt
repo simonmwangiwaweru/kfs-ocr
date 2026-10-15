@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -178,10 +179,51 @@ fun ReviewScreen(
 
         if (currentDoc == null) {
             Box(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("No scanned document available. Scan a sheet first.", color = TextSecondary)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(BrandEmeraldLight),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Outlined.RateReview,
+                            contentDescription = null,
+                            tint = BrandEmerald,
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "No Document to Preview",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Take a photo or upload an image in the Scan tab to see the preview documentation and export options.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Button(
+                        onClick = { viewModel.selectTab(0) },
+                        colors = ButtonDefaults.buttonColors(containerColor = BrandEmerald),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Go to Scanner", fontWeight = FontWeight.SemiBold)
+                    }
+                }
             }
         } else {
             SideBySideReview(

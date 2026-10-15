@@ -25,16 +25,9 @@ class InventoryRepository {
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
 
     init {
-        seedInitialDocuments()
-    }
-
-    private fun seedInitialDocuments() {
-        val doc1 = createAberdareDocument()
-        val doc2 = createMugugaDocument()
-        val doc3 = createKakamegaDocument()
-
-        _documents.value = listOf(doc1, doc2, doc3)
-        _activeDocumentId.value = doc1.id
+        // Clean start: No auto-generated mockups or false sample archives
+        _documents.value = emptyList()
+        _activeDocumentId.value = null
     }
 
     fun setActiveDocument(id: String) {
