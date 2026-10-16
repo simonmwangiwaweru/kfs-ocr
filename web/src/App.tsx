@@ -87,11 +87,13 @@ export default function App() {
   // Inspector modal state
   const [selectedCell, setSelectedCell] = useState<{
     rowNumber: number;
-    field: 'treeNumber' | 'speciesCode' | 'dbhCm' | 'heightM' | 'healthStatus' | 'notes';
+    field: string;
+    headerKey: string;
     label: string;
     value: string;
     confidence: number;
     isUncertain: boolean;
+    candidateValues?: Array<{ value: string; probability: number; reason?: string }>;
   } | null>(null);
 
   const [editValue, setEditValue] = useState('');
@@ -111,15 +113,24 @@ export default function App() {
     const initDb = async () => {
       try {
         const all = await db.scans.toArray();
-        // Filter out any previous sample mockups
-        const userDocs = all.filter(d => d.id !== "DOC-ABER-2023-01" && !d.id.startsWith("DOC-SAMPLE-"));
-        if (all.length !== userDocs.length) {
-          try {
-            await db.scans.delete("DOC-ABER-2023-01");
-          } catch (_) {}
+        // Filter out and purge any previous sample mockups or legacy test records
+        const userDocs = all.filter(d => 
+          d.id !== "DOC-ABER-2023-01" && 
+          !d.id.startsWith("DOC-SAMPLE-") &&
+          !d.title?.includes("BULLETIN DE LA 3ème") &&
+          !d.institution?.includes("CONGO")
+        );
+        for (const doc of all) {
+          if (doc.id === "DOC-ABER-2023-01" || doc.title?.includes("BULLETIN DE LA 3ème") || doc.institution?.includes("CONGO")) {
+            try { await db.scans.delete(doc.id); } catch (_) {}
+          }
         }
         setDocuments(userDocs);
-        if (userDocs.length > 0) setActiveDoc(userDocs[0]);
+        if (userDocs.length > 0) {
+          setActiveDoc(userDocs[0]);
+        } else {
+          setActiveDoc(null);
+        }
       } catch (e) {
         console.warn("IndexedDB fallback to in-memory state:", e);
       }
@@ -179,7 +190,7 @@ export default function App() {
       setSelectedRowIndex(0);
       setActiveTab('review');
       setIsProcessing(false);
-      showToast("✨ Document analysé et numérisé avec succès !");
+      showToast("✨ Document scanned and extracted successfully!");
     } catch (err: any) {
       console.error("Gemini Vision Scan error:", err);
       setIsProcessing(false);
@@ -298,21 +309,25 @@ export default function App() {
 
   const handleCellClick = (
     rowNumber: number,
-    field: 'treeNumber' | 'speciesCode' | 'dbhCm' | 'heightM' | 'healthStatus' | 'notes',
+    field: string,
+    headerKey: string,
     label: string,
     value: string,
     confidence: number,
     isUncertain: boolean,
-    index: number
+    index: number,
+    candidateValues?: Array<{ value: string; probability: number; reason?: string }>
   ) => {
     setSelectedRowIndex(index);
     setSelectedCell({
       rowNumber,
       field,
+      headerKey,
       label,
       value,
       confidence,
-      isUncertain
+      isUncertain,
+      candidateValues
     });
     setEditValue(value);
   };
@@ -322,11 +337,16 @@ export default function App() {
     const updatedRows = activeDoc.rows.map(row => {
       if (row.rowNumber === selectedCell.rowNumber) {
         const newFlags = { ...row.flags };
-        if (selectedCell.field === 'dbhCm') newFlags.dbhUncertain = false;
-        if (selectedCell.field === 'heightM') newFlags.heightUncertain = false;
+        if (selectedCell.field === 'dbhCm' || selectedCell.headerKey === 'col_p1') newFlags.dbhUncertain = false;
+        if (selectedCell.field === 'heightM' || selectedCell.headerKey === 'col_exam1') newFlags.heightUncertain = false;
+        const newCells = { ...(row.cells || {}) };
+        if (selectedCell.headerKey) {
+          newCells[selectedCell.headerKey] = editValue;
+        }
         return {
           ...row,
           [selectedCell.field]: editValue,
+          cells: newCells,
           flags: newFlags,
           isVerified: true
         };
@@ -456,27 +476,15 @@ export default function App() {
 
   const handleExportWord = (doc: ScanRecord) => {
     const headers = getDocumentHeaders(doc);
-    const isSchool = doc.documentType === 'school_bulletin' || doc.institution?.toLowerCase().includes('enseignement');
 
-    const headerHtml = isSchool ? `
-      <div style="text-align: center; border-bottom: 2px solid #1e3a8a; padding-bottom: 12px; margin-bottom: 16px;">
-        <h2 style="color: #1e3a8a; margin: 0; font-size: 14pt; letter-spacing: 0.5px; text-transform: uppercase;">RÉPUBLIQUE DÉMOCRATIQUE DU CONGO</h2>
-        <h3 style="color: #475569; margin: 4px 0; font-size: 11pt; text-transform: uppercase;">MINISTÈRE DE L'ENSEIGNEMENT PRIMAIRE, SECONDAIRE ET TECHNIQUE</h3>
-        <div style="font-size: 10pt; color: #64748b; margin-top: 4px;">PROVINCE DU LUALABA • VILLE DE KOLWEZI • COMMUNE DE MANIKA</div>
-      </div>
-      <div style="background-color: #f1f5f9; padding: 12px 16px; border-left: 5px solid #1e3a8a; margin-bottom: 20px;">
-        <h1 style="color: #0f172a; font-size: 13pt; margin: 0; text-transform: uppercase;">${doc.title}</h1>
-        <div style="font-size: 10.5pt; color: #334155; margin-top: 4px;">
-          ÉCOLE: <strong>${doc.forestStation || 'C.S. LES CALINOURS'}</strong> &nbsp;|&nbsp; ANNÉE SCOLAIRE: <strong>2022-2023</strong>
-        </div>
-      </div>
-    ` : `
+    const headerHtml = `
       <div style="border-bottom: 2px solid #047857; padding-bottom: 12px; margin-bottom: 16px;">
-        <h1 style="color: #047857; font-size: 18pt; margin: 0;">${doc.institution || 'Official Document Record'}</h1>
-        <p style="color: #64748b; font-size: 11pt; margin-top: 4px; margin-bottom: 0;">${doc.subHeader || 'Digitized Record Documentation'}</p>
+        <h1 style="color: #047857; font-size: 16pt; margin: 0; text-transform: uppercase;">${doc.institution || 'Document Digitization Report'}</h1>
+        ${doc.subHeader ? `<p style="color: #64748b; font-size: 11pt; margin-top: 4px; margin-bottom: 0;">${doc.subHeader}</p>` : ''}
       </div>
       <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px; margin-bottom: 20px;">
         <h2 style="color: #0f172a; font-size: 13pt; margin: 0 0 6px 0;">${doc.title}</h2>
+        ${doc.personName ? `<div style="font-size: 10pt; color: #475569;">Name / Subject: <strong>${doc.personName}</strong></div>` : ''}
       </div>
     `;
 
@@ -504,40 +512,22 @@ export default function App() {
     `;
 
     const tableHeadersHtml = headers.map(h => 
-      `<th style="background-color: ${isSchool ? '#1e3a8a' : '#047857'}; color: white; padding: 9px 10px; border: 1px solid ${isSchool ? '#1e3a8a' : '#047857'}; text-align: left; font-size: 10pt;">${h.label}</th>`
+      `<th style="background-color: #047857; color: white; padding: 9px 10px; border: 1px solid #047857; text-align: left; font-size: 10pt;">${h.label}</th>`
     ).join('');
 
     const tableRowsHtml = doc.rows.map((r, idx) => {
       const bg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
       const cells = headers.map(h => {
         const val = getCellDisplay(r, h.key);
-        const isBold = h.key.includes('subject') || h.key.includes('species') || h.key.includes('tot');
+        const isBold = h.key.includes('subject') || h.key.includes('desc') || h.key.includes('tot');
         return `<td style="padding: 8px 10px; border: 1px solid #cbd5e1; background-color: ${bg}; ${isBold ? 'font-weight: bold;' : ''}">${val}</td>`;
       }).join('');
       return `<tr>${cells}</tr>`;
     }).join('');
 
-    const signaturesHtml = isSchool ? `
-      <table style="width: 100%; margin-top: 40px; border: none; font-size: 10pt;">
-        <tr>
-          <td style="text-align: center; width: 33%;">
-            <strong>L'Élève</strong><br><br><br>
-            _______________________
-          </td>
-          <td style="text-align: center; width: 33%;">
-            <strong>Le Titulaire</strong><br><br><br>
-            _______________________
-          </td>
-          <td style="text-align: center; width: 33%;">
-            <strong>Le Directeur des Études</strong><br>
-            <em>(Sceau de l'École)</em><br><br>
-            _______________________
-          </td>
-        </tr>
-      </table>
-    ` : `
-      <div style="margin-top: 30px; font-size: 10pt; color: #64748b;">
-        Certifié conforme • ${new Date().toLocaleDateString()}
+    const signaturesHtml = `
+      <div style="margin-top: 30px; font-size: 10pt; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 10px;">
+        Digitized & Verified • ${new Date().toLocaleDateString()}
       </div>
     `;
 
@@ -598,16 +588,15 @@ export default function App() {
   const handleExportPDF = (doc: ScanRecord) => {
     const printWindow = window.open('', '_blank');
     const headers = getDocumentHeaders(doc);
-    const isSchool = doc.documentType === 'school_bulletin' || doc.institution?.toLowerCase().includes('enseignement');
 
     const tableHeadersHtml = headers.map(h => 
-      `<th style="background: ${isSchool ? '#1e3a8a' : '#047857'}; color: #ffffff; padding: 8px 10px; border: 1px solid ${isSchool ? '#1e3a8a' : '#047857'}; text-align: left;">${h.label}</th>`
+      `<th style="background: #047857; color: #ffffff; padding: 8px 10px; border: 1px solid #047857; text-align: left;">${h.label}</th>`
     ).join('');
 
     const tableRowsHtml = doc.rows.map(r => {
       const cells = headers.map(h => {
         const val = getCellDisplay(r, h.key);
-        const isBold = h.key.includes('subject') || h.key.includes('species') || h.key.includes('tot');
+        const isBold = h.key.includes('subject') || h.key.includes('desc') || h.key.includes('tot');
         return `<td style="padding: 7px 10px; border: 1px solid #cbd5e1; ${isBold ? 'font-weight: bold;' : ''}">${val}</td>`;
       }).join('');
       return `<tr>${cells}</tr>`;
@@ -631,8 +620,8 @@ export default function App() {
           <style>
             @page { size: portrait; margin: 12mm; }
             body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #0f172a; margin: 0; padding: 15px; font-size: 12px; }
-            h1 { color: ${isSchool ? '#1e3a8a' : '#047857'}; margin: 0 0 4px 0; font-size: 18px; font-weight: 700; text-transform: uppercase; }
-            .header-banner { text-align: center; border-bottom: 2px solid ${isSchool ? '#1e3a8a' : '#047857'}; padding-bottom: 10px; margin-bottom: 12px; }
+            h1 { color: #047857; margin: 0 0 4px 0; font-size: 18px; font-weight: 700; text-transform: uppercase; }
+            .header-banner { text-align: center; border-bottom: 2px solid #047857; padding-bottom: 10px; margin-bottom: 12px; }
             .sub { color: #64748b; font-size: 11px; margin-bottom: 12px; }
             .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 12px; line-height: 1.5; }
             table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; }
@@ -644,8 +633,8 @@ export default function App() {
         </head>
         <body>
           <div class="header-banner">
-            <h2 style="margin: 0; font-size: 15px; color: ${isSchool ? '#1e3a8a' : '#047857'}; text-transform: uppercase;">
-              ${doc.institution || 'RÉPUBLIQUE DÉMOCRATIQUE DU CONGO'}
+            <h2 style="margin: 0; font-size: 15px; color: #047857; text-transform: uppercase;">
+              ${doc.institution || 'Document Record'}
             </h2>
             <div style="font-size: 11px; color: #475569; margin-top: 2px;">${doc.subHeader || ''}</div>
           </div>
@@ -659,15 +648,9 @@ export default function App() {
               ${tableRowsHtml}
             </tbody>
           </table>
-          ${isSchool ? `
-            <table style="width: 100%; margin-top: 35px; border: none;">
-              <tr>
-                <td style="text-align: center; width: 33%;"><strong>L'Élève</strong><br><br><br>_______________</td>
-                <td style="text-align: center; width: 33%;"><strong>Le Titulaire</strong><br><br><br>_______________</td>
-                <td style="text-align: center; width: 33%;"><strong>Le Directeur des Études</strong><br><em>(Sceau)</em><br><br>_______________</td>
-              </tr>
-            </table>
-          ` : ''}
+          <div style="margin-top: 30px; font-size: 10px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 8px;">
+            Digitized & Verified • ${new Date().toLocaleDateString()}
+          </div>
           <script>
             window.onload = function() {
               setTimeout(function() { window.print(); }, 250);
@@ -772,34 +755,33 @@ export default function App() {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
         <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-800 shadow-xs overflow-hidden">
-              <img src="/ic_kfs_logo.png" alt="KFS Logo" className="w-8 h-8 object-contain" onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }} />
-              <Trees size={20} className="text-emerald-700 -ml-8" />
+            <div className="w-10 h-10 rounded-xl bg-emerald-700 flex items-center justify-center text-white shadow-xs">
+              <FileText size={20} />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-sm md:text-base font-bold text-slate-900 tracking-tight">KFS Inventory Scan</h1>
-                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider">KEFRI</span>
+                <h1 className="text-sm md:text-base font-bold text-slate-900 tracking-tight">Document & Form Scanner</h1>
+                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider">AI OCR</span>
               </div>
-              <p className="text-[11px] text-slate-500 hidden sm:block">Kenya Forestry Research Institute • Field Paper Form Digitization</p>
+              <p className="text-[11px] text-slate-500 hidden sm:block">Intelligent Paper OCR • Handwriting Recognition • Probability Breakdown</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 md:gap-3">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200/80 text-[11px] font-medium text-emerald-800">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>AI Engine Active</span>
+            </div>
             <button
               onClick={() => {
                 setApiKeyInput(getStoredGeminiKey());
                 setApiKeyModalReason(null);
                 setShowApiKeyModal(true);
               }}
-              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
-              title="Gemini AI Scanner Settings"
+              className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition"
+              title="Scanner API Settings"
             >
-              <Sparkles size={14} className="text-emerald-600" />
-              <span>Gemini Vision AI</span>
-              <span className={`w-2 h-2 rounded-full ${hasCustomKey ? 'bg-emerald-500' : 'bg-amber-500'} animate-pulse`}></span>
+              <Key size={15} />
             </button>
           </div>
         </div>
@@ -1014,7 +996,7 @@ export default function App() {
                     <div className="flex items-center gap-2">
                       <h2 className="font-bold text-base md:text-lg text-slate-900 tracking-tight">{activeDoc.title}</h2>
                       <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
-                        <CheckCircle2 size={12} /> Prêt pour Export
+                        <CheckCircle2 size={12} /> Ready for Export
                       </span>
                     </div>
                     {/* Dynamic metadata tags */}
@@ -1027,13 +1009,13 @@ export default function App() {
                         ))
                       ) : (
                         <>
-                          <span className="bg-slate-100 px-2.5 py-1 rounded-lg">Réf: <strong>{activeDoc.plotCode}</strong></span>
-                          <span className="bg-slate-100 px-2.5 py-1 rounded-lg">Station/Lieu: <strong>{activeDoc.forestStation}</strong></span>
-                          <span className="bg-slate-100 px-2.5 py-1 rounded-lg">Observateur: <strong>{activeDoc.observerName}</strong></span>
+                          <span className="bg-slate-100 px-2.5 py-1 rounded-lg">Ref: <strong>{activeDoc.plotCode}</strong></span>
+                          <span className="bg-slate-100 px-2.5 py-1 rounded-lg">Source: <strong>{activeDoc.forestStation}</strong></span>
+                          <span className="bg-slate-100 px-2.5 py-1 rounded-lg">Reviewer: <strong>{activeDoc.observerName}</strong></span>
                         </>
                       )}
                       <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-1 rounded-lg font-semibold">
-                        {activeDoc.rows.length} {activeDoc.documentType === 'school_bulletin' ? 'Branches / Cours' : 'Enregistrements'}
+                        {activeDoc.rows.length} Rows Extracted
                       </span>
                     </div>
                   </div>
@@ -1042,7 +1024,7 @@ export default function App() {
                     onClick={handleVerifyAll}
                     className="self-start md:self-auto bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shrink-0 cursor-pointer shadow-xs"
                   >
-                    <ShieldCheck size={14} className="text-emerald-700" /> Tout Vérifier
+                    <ShieldCheck size={14} className="text-emerald-700" /> Verify All
                   </button>
                 </div>
 
@@ -1174,13 +1156,13 @@ export default function App() {
                     <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
                       <div className="flex items-center gap-2">
                         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-                          <FileSpreadsheet size={14} className="text-emerald-700" /> Tableau de Données Extrait
+                          <FileSpreadsheet size={14} className="text-emerald-700" /> Extracted Data Table
                         </h3>
                         <span className="text-[11px] text-slate-500 font-medium">
-                          ({activeDoc.rows.length} {activeDoc.documentType === 'school_bulletin' ? 'Branches' : 'Lignes'})
+                          ({activeDoc.rows.length} Rows)
                         </span>
                       </div>
-                      <span className="text-[11px] text-slate-500 italic">Cliquer sur une valeur pour modifier</span>
+                      <span className="text-[11px] text-slate-500 italic">Click any cell to edit or view AI probability</span>
                     </div>
 
                     <div className="overflow-x-auto flex-1">
@@ -1211,24 +1193,57 @@ export default function App() {
                                   const isTotal = h.key.includes('tot');
                                   const isMention = h.key.includes('mention') || h.key.includes('health');
 
+                                  const candidates = (row.candidateValues && row.candidateValues[h.key]) || [];
+                                  const hasCandidates = candidates.length > 0;
+                                  const topProb = candidates[0]?.probability ?? 0.95;
+                                  const isUncertain = (h.key === 'col_p1' && row.flags?.dbhUncertain) || 
+                                                      (h.key === 'col_exam1' && row.flags?.heightUncertain) || 
+                                                      (hasCandidates && topProb < 0.85);
+
                                   return (
                                     <td 
                                       key={h.key}
-                                      className={`p-2.5 ${isFirst ? 'font-mono font-bold text-slate-900' : ''} ${
+                                      className={`p-2.5 transition relative cursor-pointer ${
+                                        isFirst ? 'font-mono font-bold text-slate-900' : ''
+                                      } ${
                                         isSubject ? 'font-bold text-slate-900 font-sans' : ''
-                                      } ${isTotal ? 'font-mono font-bold text-blue-900' : ''}`}
+                                      } ${isTotal ? 'font-mono font-bold text-blue-900' : ''} ${
+                                        isUncertain ? 'bg-amber-50/80 hover:bg-amber-100/70' : 'hover:bg-slate-100/70'
+                                      }`}
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleCellClick(row.rowNumber, 'speciesCode', h.label, val, 0.95, false, idx);
+                                        handleCellClick(
+                                          row.rowNumber,
+                                          isSubject ? 'speciesCode' : h.key === 'col_p1' ? 'dbhCm' : h.key === 'col_exam1' ? 'heightM' : h.key,
+                                          h.key,
+                                          h.label,
+                                          val,
+                                          topProb,
+                                          isUncertain,
+                                          idx,
+                                          candidates
+                                        );
                                       }}
                                     >
-                                      {isMention ? (
-                                        <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap">
-                                          {val}
-                                        </span>
-                                      ) : (
-                                        <span>{val}</span>
-                                      )}
+                                      <div className="flex items-center gap-1.5 justify-between">
+                                        {isMention ? (
+                                          <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap">
+                                            {val}
+                                          </span>
+                                        ) : (
+                                          <span>{val}</span>
+                                        )}
+
+                                        {/* Probability Indicator for ambiguous / faint entries */}
+                                        {isUncertain && (
+                                          <span 
+                                            className="shrink-0 text-[9px] font-mono px-1 py-0.5 rounded bg-amber-200 text-amber-900 font-bold" 
+                                            title={`OCR Probability: ${(topProb * 100).toFixed(0)}% (Click to see candidate breakdown)`}
+                                          >
+                                            {(topProb * 100).toFixed(0)}%
+                                          </span>
+                                        )}
+                                      </div>
                                     </td>
                                   );
                                 })}
@@ -1407,6 +1422,50 @@ export default function App() {
                   </p>
                 )}
               </div>
+
+              {/* Candidate Probability Breakdown for faint / ambiguous handwriting */}
+              {selectedCell.candidateValues && selectedCell.candidateValues.length > 0 && (
+                <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-200 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                      <Sparkles size={13} className="text-amber-600" />
+                      Candidate Probabilities (Faint / Ambiguous Text)
+                    </span>
+                    <span className="text-[10px] text-amber-800 font-semibold">Tap to select</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {selectedCell.candidateValues.map((cand, cIdx) => {
+                      const isPicked = editValue === cand.value;
+                      return (
+                        <button
+                          key={cIdx}
+                          type="button"
+                          onClick={() => setEditValue(cand.value)}
+                          className={`w-full flex items-center justify-between p-2 rounded-lg text-left transition border ${
+                            isPicked
+                              ? 'bg-amber-100 border-amber-400 font-bold text-amber-950 shadow-2xs'
+                              : 'bg-white hover:bg-amber-50/60 border-amber-200/60 text-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs px-2 py-0.5 rounded bg-amber-200/60 text-amber-900 font-bold">
+                              {cand.value}
+                            </span>
+                            {cand.reason && (
+                              <span className="text-[11px] text-slate-600 truncate max-w-[210px]">
+                                {cand.reason}
+                              </span>
+                            )}
+                          </div>
+                          <span className="font-mono font-bold text-xs text-amber-800">
+                            {(cand.probability * 100).toFixed(0)}%
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Value Editor Input */}
               <div className="space-y-1.5">

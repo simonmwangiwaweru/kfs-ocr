@@ -12,6 +12,12 @@ export interface DocumentMetadataItem {
   value: string;
 }
 
+export interface CandidatePrediction {
+  value: string;
+  probability: number;
+  reason?: string;
+}
+
 export interface GeminiRowExtraction {
   rowNumber: number;
   treeNumber: string; // Used as generic Item/Code/N°
@@ -21,6 +27,7 @@ export interface GeminiRowExtraction {
   healthStatus: string; // Status / Mention / Health
   notes: string; // Remarks / Notes
   cells?: Record<string, string>; // Dynamic cell values for custom columns
+  candidateValues?: Record<string, CandidatePrediction[]>; // Probability data for unclear / ambiguous text
   confidence: {
     treeNumber: number;
     speciesCode: number;
@@ -110,9 +117,7 @@ export async function extractWithGeminiVision(
   const apiKey = getStoredGeminiKey();
 
   if (!apiKey) {
-    // If no API key configured, use intelligent local document recognizer
-    onStatusUpdate?.('Scanning document structure with local vision analyzer...');
-    return recognizeDocumentLocal(imageDataUrl, fileName);
+    throw new Error('NO_API_KEY');
   }
 
   onStatusUpdate?.('1/3: Preparing image for Gemini Multimodal Vision AI...');
@@ -126,71 +131,41 @@ export async function extractWithGeminiVision(
     base64Data = parts[1];
   }
 
-  const prompt = `You are an expert Document Digitization and Optical Character Recognition (OCR) AI.
-You must transcribe and format WHATEVER document is in this image into a clean, properly structured report.
+  const prompt = `You are a professional Optical Character Recognition (OCR) and Document Digitization AI.
+Transcribe and extract ALL text, tables, columns, rows, handwritten marks, and headers found directly in this uploaded image into structured JSON.
+CRITICAL: Read ONLY what is actually written or printed in this specific image. Do NOT invent, assume, or substitute data from any other document. Keep the original language and spelling of the document.
 
-Examine the image carefully:
-1. Determine the exact document type:
-   - Is it an Educational School Report / Bulletin (e.g. from République Démocratique du Congo / Ministère de l'Enseignement, or other school)?
-   - Is it a Forestry Inventory survey form?
-   - Is it a commercial invoice, table, or administrative record?
-2. Extract all header and institutional metadata:
-   - Official Institution/Ministry name
-   - Document Title (e.g., "BULLETIN DE LA 3ème ANNÉE HUMANITÉ COMMERCIALE & GESTION")
-   - Sub-header details (e.g., Province, City, School/Station name)
-   - Person/Candidate/Surveyor name (e.g. Student Name "MALONGA JEAN PIERRE")
-   - ID / Matricule / Perm. Number (e.g. "74027-74240313002573")
-   - Date / Academic Year (e.g. "2022-2023")
-   - Key metadata key-value pairs (e.g. Sexe, Date de Naissance, Classe, Commune)
-3. Extract the table headers exactly matching the document:
-   - Columns list (key and human-readable label)
-4. Extract all table rows (Subjects/Items, Marks/Values, Totals, Remarks) with individual confidence scores (0.0 to 1.0) and uncertainty flags.
-
-Return STRICT JSON ONLY matching this format:
+Output STRICT JSON matching this schema:
 {
-  "documentType": "school_bulletin" | "forestry_inventory" | "tabular_form" | "general_document",
-  "title": "Exact Title of Document",
-  "institution": "Ministry or Official Institution",
-  "subHeader": "Location, School or Regional Header",
-  "personName": "Student, Candidate or Author Name",
-  "idNumber": "Official ID or Reference Number",
-  "dateString": "Date or Academic Year",
-  "summary": "1-sentence summary",
+  "documentType": "tabular_form" | "general_document" | "invoice" | "academic_record" | "inventory",
+  "title": "Exact Title of the Document as written in the image",
+  "institution": "Issuing organization, school, business, or ministry found in the image header",
+  "subHeader": "Secondary subtitle, location, address, or branch if present",
+  "personName": "Person, candidate, patient, or employee name if present",
+  "idNumber": "Registration, reference, or invoice number if present",
+  "dateString": "Date or period written on the document",
+  "summary": "1-sentence summary of the document contents",
   "metadataFields": [
-    { "label": "Province", "value": "Lualaba" },
-    { "label": "Ville", "value": "Kolwezi" },
-    { "label": "Classe", "value": "1ère H.C.G" }
+    { "label": "Header Field Name", "value": "Header Field Value" }
   ],
   "tableHeaders": [
-    { "key": "col_num", "label": "N°" },
-    { "key": "col_subject", "label": "BRANCHES / MATIÈRES" },
-    { "key": "col_max", "label": "MAX" },
-    { "key": "col_p1", "label": "1ère P." },
-    { "key": "col_p2", "label": "2ème P." },
-    { "key": "col_exam", "label": "EXAM" },
-    { "key": "col_tot", "label": "TOTAL" },
-    { "key": "col_mention", "label": "MENTION" }
+    { "key": "col_1", "label": "First Column Name" },
+    { "key": "col_2", "label": "Second Column Name" }
   ],
   "rows": [
     {
       "rowNumber": 1,
-      "treeNumber": "01",
-      "speciesCode": "Comptabilité Générale",
-      "dbhCm": "8.5",
-      "heightM": "16.0",
-      "healthStatus": "Distinction",
-      "notes": "Excellent travail",
       "cells": {
-        "col_num": "01",
-        "col_subject": "Comptabilité Générale",
-        "col_max": "20",
-        "col_p1": "8.5",
-        "col_p2": "8.0",
-        "col_exam": "16.0",
-        "col_tot": "32.5",
-        "col_mention": "Distinction"
+        "col_1": "Cell Value",
+        "col_2": "Cell Value"
       },
-      "confidence": { "treeNumber": 0.98, "speciesCode": 0.96, "dbhCm": 0.95, "heightM": 0.92 },
+      "candidateValues": {
+        "col_2": [
+          { "value": "Most Likely Value", "probability": 0.85, "reason": "Clear handwriting strokes" },
+          { "value": "Alternative Reading", "probability": 0.15, "reason": "Slight ink blur" }
+        ]
+      },
+      "confidence": { "treeNumber": 0.95, "speciesCode": 0.95, "dbhCm": 0.95, "heightM": 0.95 },
       "flags": { "dbhUncertain": false, "heightUncertain": false },
       "comments": []
     }
@@ -219,8 +194,7 @@ Return STRICT JSON ONLY matching this format:
 
   const modelsToTry = [
     'gemini-flash-latest',
-    'gemini-3.5-flash',
-    'gemini-2.5-flash-image',
+    'gemini-3.8-flash',
     'gemini-2.5-flash'
   ];
 
@@ -349,278 +323,126 @@ function sanitizeParsedResult(parsed: any, fileName: string): GeminiExtractionRe
   return {
     documentType: docType,
     title: parsed.title || `Document: ${fileName.replace(/\.[^/.]+$/, "")}`,
-    institution: parsed.institution || 'Ministère de l\'Enseignement Primaire, Secondaire et Technique',
-    subHeader: parsed.subHeader || 'République Démocratique du Congo',
-    personName: parsed.personName || 'Malonga Jean Pierre',
-    idNumber: parsed.idNumber || '74027-74240313002573',
-    plotCode: parsed.plotCode || parsed.idNumber || 'DOC-RDC-01',
-    forestStation: parsed.forestStation || parsed.institution || 'Enseignement Secondaire',
-    observerName: parsed.observerName || parsed.personName || 'Directeur des Études',
+    institution: parsed.institution || 'Document Record',
+    subHeader: parsed.subHeader || '',
+    personName: parsed.personName || '',
+    idNumber: parsed.idNumber || '',
+    plotCode: parsed.plotCode || parsed.idNumber || `REF-${Date.now().toString().slice(-4)}`,
+    forestStation: parsed.forestStation || parsed.institution || 'Archive',
+    observerName: parsed.observerName || parsed.personName || 'Scanner Operator',
     date: Date.now(),
-    summary: parsed.summary || 'Document numérisé avec succès par Gemini Vision AI.',
+    summary: parsed.summary || 'Document digitized successfully with Gemini Vision AI.',
     metadataFields,
     tableHeaders,
-    rows: rows.length > 0 ? rows : createCongoBulletinRows(),
+    rows: rows,
     isAiExtracted: true,
     modelUsed: 'gemini-vision'
   };
 }
 
 function defaultHeadersForType(type: string): DocumentHeaderColumn[] {
-  if (type === 'school_bulletin') {
-    return [
-      { key: 'col_num', label: 'N°' },
-      { key: 'col_subject', label: 'BRANCHES / MATIÈRES' },
-      { key: 'col_max', label: 'MAX' },
-      { key: 'col_p1', label: '1ère P.' },
-      { key: 'col_p2', label: '2ème P.' },
-      { key: 'col_exam1', label: 'EXAM. 1' },
-      { key: 'col_tot1', label: 'TOT. 1' },
-      { key: 'col_mention', label: 'MENTION' }
-    ];
-  }
-  if (type === 'forestry_inventory') {
-    return [
-      { key: 'treeNumber', label: 'Tree #' },
-      { key: 'speciesCode', label: 'Species' },
-      { key: 'dbhCm', label: 'DBH (cm)' },
-      { key: 'heightM', label: 'Height (m)' },
-      { key: 'healthStatus', label: 'Health' },
-      { key: 'notes', label: 'Notes' }
-    ];
-  }
   return [
-    { key: 'col_num', label: 'Item #' },
-    { key: 'col_subject', label: 'Description' },
-    { key: 'col_p1', label: 'Value 1' },
-    { key: 'col_p2', label: 'Value 2' },
-    { key: 'col_mention', label: 'Status' },
-    { key: 'col_notes', label: 'Notes' }
+    { key: 'col_1', label: 'Item #' },
+    { key: 'col_2', label: 'Field / Description' },
+    { key: 'col_3', label: 'Value 1' },
+    { key: 'col_4', label: 'Value 2' },
+    { key: 'col_5', label: 'Status' },
+    { key: 'col_6', label: 'Notes' }
   ];
 }
 
 /**
- * Intelligent Document Recognizer for offline / immediate high-fidelity rendering
+ * Intelligent Document Recognizer for offline / preview before live Gemini OCR
  */
 export function recognizeDocumentLocal(imageDataUrl: string, fileName: string): GeminiExtractionResult {
-  const lower = (fileName + ' ' + imageDataUrl.slice(0, 500)).toLowerCase();
+  const cleanName = fileName.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+  const capitalized = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
 
-  // If the document is the Congolese school bulletin (or general image upload in this project)
-  const isCongoSchool = lower.includes('congo') || lower.includes('bulletin') || lower.includes('rdc') || lower.includes('malonga') || lower.includes('calinours') || lower.includes('image.png') || !lower.includes('forest');
-
-  if (isCongoSchool) {
-    return {
-      documentType: 'school_bulletin',
-      title: 'BULLETIN DE LA 3ème ANNÉE HUMANITÉ COMMERCIALE & GESTION',
-      institution: 'RÉPUBLIQUE DÉMOCRATIQUE DU CONGO • MINISTÈRE DE L\'ENSEIGNEMENT PRIMAIRE, SECONDAIRE ET TECHNIQUE',
-      subHeader: 'PROVINCE DU LUALABA • VILLE DE KOLWEZI • COMMUNE DE MANIKA',
-      personName: 'MALONGA JEAN PIERRE',
-      idNumber: '74027-74240313002573',
-      plotCode: '74027-74240313002573',
-      forestStation: 'C.S. LES CALINOURS (Code: 74240313)',
-      observerName: 'Directeur des Études / Titulaire',
-      date: Date.now(),
-      summary: 'Bulletin scolaire officiel de la République Démocratique du Congo numérisé et structuré avec succès.',
-      metadataFields: [
-        { label: 'Élève', value: 'MALONGA JEAN PIERRE' },
-        { label: 'Sexe', value: 'Masculin (M)' },
-        { label: 'Né(e) à', value: 'Lubumbashi, le 17/08/2007' },
-        { label: 'N° Perm.', value: '7424031300257' },
-        { label: 'Province', value: 'Lualaba' },
-        { label: 'Ville', value: 'Kolwezi' },
-        { label: 'École', value: 'C.S. LES CALINOURS (Code: 74240313)' },
-        { label: 'Classe', value: '3ème Année Humanité Commerciale & Gestion (1ère H.C.G)' },
-        { label: 'Année Scolaire', value: '2022 - 2023' }
-      ],
-      tableHeaders: [
-        { key: 'col_num', label: 'N°' },
-        { key: 'col_subject', label: 'BRANCHES / MATIÈRES' },
-        { key: 'col_max', label: 'MAX' },
-        { key: 'col_p1', label: '1ère P.' },
-        { key: 'col_p2', label: '2ème P.' },
-        { key: 'col_exam1', label: 'EXAM. 1' },
-        { key: 'col_tot1', label: 'TOT. 1' },
-        { key: 'col_mention', label: 'APPRÉCIATION' }
-      ],
-      rows: createCongoBulletinRows(),
-      isAiExtracted: true,
-      modelUsed: 'gemini-3.8-vision'
-    };
-  }
-
-  // Standard Forestry Survey fallback
   return {
-    documentType: 'forestry_inventory',
-    title: `Field Survey: ${fileName.replace(/\.[^/.]+$/, "")}`,
-    institution: 'Kenya Forestry Research Institute (KEFRI)',
-    subHeader: 'Muguga Research Station • Plot KFR/B7',
-    personName: 'Field Team Alpha',
-    idNumber: 'KFR/B7',
-    plotCode: 'KFR/B7',
-    forestStation: 'Muguga Research Station',
-    observerName: 'Field Team Alpha',
+    documentType: 'general_document',
+    title: `${capitalized}`,
+    institution: 'Document Image Capture',
+    subHeader: `File: ${fileName}`,
+    personName: '',
+    idNumber: `DOC-${Date.now().toString().slice(-4)}`,
+    plotCode: `DOC-${Date.now().toString().slice(-4)}`,
+    forestStation: 'Archive',
+    observerName: 'User',
     date: Date.now(),
-    summary: 'Forestry inventory sheet digitized.',
+    summary: `Document image (${fileName}) loaded. Connect your Gemini API key to run live OCR handwriting transcription.`,
     metadataFields: [
-      { label: 'Plot Code', value: 'KFR/B7' },
-      { label: 'Station', value: 'Muguga Research Station' },
-      { label: 'Surveyor', value: 'Field Team Alpha' },
-      { label: 'Date', value: new Date().toLocaleDateString() }
+      { label: 'File Name', value: fileName },
+      { label: 'Uploaded Date', value: new Date().toLocaleDateString() },
+      { label: 'OCR Status', value: 'API Key Required for Live Transcription' }
     ],
     tableHeaders: [
-      { key: 'treeNumber', label: 'Tree #' },
-      { key: 'speciesCode', label: 'Species' },
-      { key: 'dbhCm', label: 'DBH (cm)' },
-      { key: 'heightM', label: 'Height (m)' },
-      { key: 'healthStatus', label: 'Health' },
-      { key: 'notes', label: 'Notes' }
+      { key: 'col_num', label: 'Item #' },
+      { key: 'col_desc', label: 'Field / Section' },
+      { key: 'col_val', label: 'Extracted Value' },
+      { key: 'col_conf', label: 'Probability' },
+      { key: 'col_notes', label: 'Status' }
     ],
-    rows: createForestryRows(fileName),
-    isAiExtracted: true,
-    modelUsed: 'local-vision'
+    rows: [
+      {
+        rowNumber: 1,
+        treeNumber: "01",
+        speciesCode: "Image Upload",
+        dbhCm: "100%",
+        heightM: "High",
+        healthStatus: "Ready",
+        notes: fileName,
+        cells: {
+          col_num: "01",
+          col_desc: "Original Image",
+          col_val: fileName,
+          col_conf: "100%",
+          col_notes: "Loaded and stored in local database"
+        },
+        candidateValues: {},
+        confidence: { treeNumber: 0.99, speciesCode: 0.99, dbhCm: 0.99, heightM: 0.99 },
+        flags: { dbhUncertain: false, heightUncertain: false },
+        comments: [],
+        isVerified: true
+      },
+      {
+        rowNumber: 2,
+        treeNumber: "02",
+        speciesCode: "Handwriting OCR",
+        dbhCm: "Pending",
+        heightM: "Pending",
+        healthStatus: "Awaiting Key",
+        notes: "Enter free Gemini API key to transcribe text and tables",
+        cells: {
+          col_num: "02",
+          col_desc: "AI Handwriting OCR",
+          col_val: "Gemini Key Needed",
+          col_conf: "50%",
+          col_notes: "Enter Gemini API key to transcribe actual text"
+        },
+        candidateValues: {
+          col_val: [
+            { value: "Gemini Key Needed", probability: 0.50, reason: "Awaiting API key to parse image" }
+          ]
+        },
+        confidence: { treeNumber: 0.90, speciesCode: 0.85, dbhCm: 0.50, heightM: 0.50 },
+        flags: { dbhUncertain: true, heightUncertain: false },
+        comments: [
+          {
+            id: `c_${Date.now()}`,
+            author: "System",
+            text: "Connect your free Gemini API key using the key icon in the top header to run real AI OCR on this image.",
+            timestamp: Date.now(),
+            isResolved: false
+          }
+        ],
+        isVerified: false
+      }
+    ],
+    isAiExtracted: false,
+    modelUsed: 'offline-preview'
   };
 }
 
 export function generateLocalScan(imageDataUrl: string, fileName: string): GeminiExtractionResult {
   return recognizeDocumentLocal(imageDataUrl, fileName);
-}
-
-function createCongoBulletinRows(): GeminiRowExtraction[] {
-  const subjects = [
-    { code: '01', name: 'Comptabilité Générale', max: '40', p1: '7.5', p2: '8.0', exam: '16.5', tot: '32.0', mention: 'Très Bien', note: 'Maîtrise du journal et grand livre' },
-    { code: '02', name: 'Mathématiques Commerciales & Financières', max: '40', p1: '6.5', p2: '7.0', exam: '14.0', tot: '27.5', mention: 'Bien', note: 'Intérêts composés maîtrisés' },
-    { code: '03', name: 'Économie & Organisation des Entreprises', max: '40', p1: '8.0', p2: '8.5', exam: '17.0', tot: '33.5', mention: 'Distinction', note: 'Excellente analyse microéconomique' },
-    { code: '04', name: 'Droit Commercial & Fiscal', max: '20', p1: '3.5', p2: '4.0', exam: '8.0', tot: '15.5', mention: 'Bien', note: 'Actes de commerce compris' },
-    { code: '05', name: 'Français & Correspondance Commerciale', max: '40', p1: '7.0', p2: '7.5', exam: '15.0', tot: '29.5', mention: 'Bien', note: 'Rédaction soignée des lettres' },
-    { code: '06', name: 'Anglais Commercial', max: '20', p1: '3.0', p2: '3.5', exam: '7.0', tot: '13.5', mention: 'Satisfaisant', note: 'Vocabulaire bancaire à revoir' },
-    { code: '07', name: 'Informatique de Gestion & Tableur', max: '20', p1: '4.5', p2: '4.5', exam: '9.0', tot: '18.0', mention: 'Distinction', note: 'Bonne formule Excel' },
-    { code: '08', name: 'Géographie Économique', max: '20', p1: '3.5', p2: '3.5', exam: '7.5', tot: '14.5', mention: 'Bien', note: 'Bassin minier du Katanga' },
-    { code: '09', name: 'Éducation Civique et Morale', max: '20', p1: '4.0', p2: '4.0', exam: '8.0', tot: '16.0', mention: 'Très Bien', note: 'Comportement exemplaire' },
-    { code: '10', name: 'Éducation Physique & Sport', max: '20', p1: '4.0', p2: '4.5', exam: '8.5', tot: '17.0', mention: 'Très Bien', note: 'Endurance athlétique' }
-  ];
-
-  return subjects.map((s, idx) => ({
-    rowNumber: idx + 1,
-    treeNumber: s.code,
-    speciesCode: s.name,
-    dbhCm: s.p1,
-    heightM: s.tot,
-    healthStatus: s.mention,
-    notes: s.note,
-    cells: {
-      col_num: s.code,
-      col_subject: s.name,
-      col_max: s.max,
-      col_p1: s.p1,
-      col_p2: s.p2,
-      col_exam1: s.exam,
-      col_tot1: s.tot,
-      col_mention: s.mention
-    },
-    confidence: {
-      treeNumber: 0.98,
-      speciesCode: 0.96,
-      dbhCm: 0.94,
-      heightM: 0.92
-    },
-    flags: {
-      dbhUncertain: false,
-      heightUncertain: false
-    },
-    comments: [],
-    isVerified: true
-  }));
-}
-
-function createForestryRows(fileName: string): GeminiRowExtraction[] {
-  return [
-    {
-      rowNumber: 1,
-      treeNumber: "01",
-      speciesCode: "POD_G",
-      dbhCm: "41.2",
-      heightM: "24.0",
-      healthStatus: "Good",
-      notes: "Healthy stem",
-      cells: {
-        treeNumber: "01",
-        speciesCode: "POD_G",
-        dbhCm: "41.2",
-        heightM: "24.0",
-        healthStatus: "Good",
-        notes: "Healthy stem"
-      },
-      confidence: { treeNumber: 0.98, speciesCode: 0.94, dbhCm: 0.96, heightM: 0.93 },
-      flags: { dbhUncertain: false, heightUncertain: false },
-      comments: [],
-      isVerified: true
-    },
-    {
-      rowNumber: 2,
-      treeNumber: "02",
-      speciesCode: "JUN_P",
-      dbhCm: "29.7",
-      heightM: "18.5",
-      healthStatus: "Fair",
-      notes: "Faint ink entry",
-      cells: {
-        treeNumber: "02",
-        speciesCode: "JUN_P",
-        dbhCm: "29.7",
-        heightM: "18.5",
-        healthStatus: "Fair",
-        notes: "Faint ink entry"
-      },
-      confidence: { treeNumber: 0.95, speciesCode: 0.92, dbhCm: 0.68, heightM: 0.88 },
-      flags: { dbhUncertain: true, heightUncertain: false },
-      comments: [
-        { id: "c101", author: "OCR Validator", text: "Confidence below 70% due to pencil smudge on '29.7'.", timestamp: Date.now(), isResolved: false }
-      ],
-      isVerified: false
-    },
-    {
-      rowNumber: 3,
-      treeNumber: "03",
-      speciesCode: "GRA_R",
-      dbhCm: "58.4",
-      heightM: "29.1",
-      healthStatus: "Good",
-      notes: "Vigorous crown",
-      cells: {
-        treeNumber: "03",
-        speciesCode: "GRA_R",
-        dbhCm: "58.4",
-        heightM: "29.1",
-        healthStatus: "Good",
-        notes: "Vigorous crown"
-      },
-      confidence: { treeNumber: 0.97, speciesCode: 0.96, dbhCm: 0.95, heightM: 0.94 },
-      flags: { dbhUncertain: false, heightUncertain: false },
-      comments: [],
-      isVerified: true
-    },
-    {
-      rowNumber: 4,
-      treeNumber: "04",
-      speciesCode: "OLE_A",
-      dbhCm: "33.0",
-      heightM: "17.4",
-      healthStatus: "Poor",
-      notes: "Bracket fungus",
-      cells: {
-        treeNumber: "04",
-        speciesCode: "OLE_A",
-        dbhCm: "33.0",
-        heightM: "17.4",
-        healthStatus: "Poor",
-        notes: "Bracket fungus"
-      },
-      confidence: { treeNumber: 0.93, speciesCode: 0.91, dbhCm: 0.92, heightM: 0.72 },
-      flags: { dbhUncertain: false, heightUncertain: true },
-      comments: [
-        { id: "c102", author: "Field Auditor", text: "Height digit 7 slightly slanted; confirm 17.4m.", timestamp: Date.now(), isResolved: false }
-      ],
-      isVerified: false
-    }
-  ];
 }

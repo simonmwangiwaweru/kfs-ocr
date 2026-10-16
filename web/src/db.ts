@@ -39,6 +39,7 @@ export interface ScanRecord {
     notes: string;
     // Dynamic values for any document type (e.g. col1, col2, etc.)
     cells?: Record<string, string>;
+    candidateValues?: Record<string, Array<{ value: string; probability: number; reason?: string }>>;
     confidence: {
       treeNumber: number;
       speciesCode: number;
