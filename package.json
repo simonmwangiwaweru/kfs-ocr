@@ -9,7 +9,6 @@
   "scripts": {
     "dev": "npm --prefix web run dev",
     "build": "npm --prefix web run build",
-    "vercel-build": "npm --prefix web run build",
-    "postinstall": "npm --prefix web install"
+    "vercel-build": "npm --prefix web run build"
   }
 }

@@ -102,11 +102,11 @@ export function getStoredGeminiKey(): string {
     }
   } catch (_) {}
 
-  // 4. Check process.env fallback
+  // 4. Check process.env fallback safely
   try {
-    const fromProcess = (typeof process !== 'undefined' && process.env) 
-      ? (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY) 
-      : undefined;
+    const globalObj = globalThis as any;
+    const proc = globalObj?.process;
+    const fromProcess = proc?.env?.GEMINI_API_KEY || proc?.env?.VITE_GEMINI_API_KEY;
     if (fromProcess && typeof fromProcess === 'string') {
       const trimmed = fromProcess.trim();
       if (trimmed.length > 5 && !trimmed.includes('MY_GEMINI_API_KEY')) {
