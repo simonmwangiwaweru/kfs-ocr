@@ -38,7 +38,8 @@ import {
   getStoredGeminiKey, 
   saveStoredGeminiKey, 
   clearStoredGeminiKey, 
-  generateLocalScan 
+  generateLocalScan,
+  testGeminiApiKey
 } from './gemini';
 
 interface RowComment {
@@ -145,6 +146,8 @@ export default function App() {
   const [pendingScan, setPendingScan] = useState<{ imageSrc: string; fileName: string } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [hasCustomKey, setHasCustomKey] = useState(Boolean(getStoredGeminiKey()));
+  const [testingKey, setTestingKey] = useState(false);
+  const [testKeyResult, setTestKeyResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const handleScanDocument = async (imageSrc: string, fileName: string) => {
     setIsProcessing(true);
@@ -255,15 +258,38 @@ export default function App() {
     e.target.value = '';
   };
 
+  const handleTestKey = async () => {
+    const keyToTest = apiKeyInput.trim() || getStoredGeminiKey();
+    if (!keyToTest) {
+      setTestKeyResult({ success: false, message: "Please paste a key first to test." });
+      return;
+    }
+    setTestingKey(true);
+    setTestKeyResult(null);
+    const res = await testGeminiApiKey(keyToTest);
+    setTestingKey(false);
+    setTestKeyResult(res);
+  };
+
+  const handleClearApiKey = () => {
+    clearStoredGeminiKey();
+    setApiKeyInput('');
+    setHasCustomKey(Boolean(getStoredGeminiKey()));
+    setTestKeyResult(null);
+    showToast("API key removed from browser storage.");
+  };
+
   const handleApplyApiKeyAndRetry = async () => {
-    if (!apiKeyInput.trim()) {
+    const trimmed = apiKeyInput.trim();
+    if (!trimmed) {
       showToast("Please enter an API key or use Offline Preview");
       return;
     }
-    saveStoredGeminiKey(apiKeyInput.trim());
+    saveStoredGeminiKey(trimmed);
     setHasCustomKey(true);
     setShowApiKeyModal(false);
-    showToast("Gemini API key saved!");
+    setTestKeyResult(null);
+    showToast("Gemini API key saved to browser!");
 
     if (pendingScan) {
       const { imageSrc, fileName } = pendingScan;
@@ -768,20 +794,23 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200/80 text-[11px] font-medium text-emerald-800">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>AI Engine Active</span>
-            </div>
             <button
               onClick={() => {
                 setApiKeyInput(getStoredGeminiKey());
                 setApiKeyModalReason(null);
+                setTestKeyResult(null);
                 setShowApiKeyModal(true);
               }}
-              className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition"
-              title="Scanner API Settings"
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition cursor-pointer ${
+                hasCustomKey
+                  ? 'bg-emerald-50 border border-emerald-200/80 text-emerald-800 hover:bg-emerald-100'
+                  : 'bg-amber-50 border border-amber-300 text-amber-900 hover:bg-amber-100 shadow-xs'
+              }`}
+              title="Click to view Gemini API status and settings"
             >
-              <Key size={15} />
+              <span className={`w-2 h-2 rounded-full ${hasCustomKey ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
+              <span>{hasCustomKey ? 'AI OCR Ready' : 'Connect Gemini Key'}</span>
+              <Key size={13} className="ml-0.5 opacity-70" />
             </button>
           </div>
         </div>
@@ -1529,7 +1558,7 @@ export default function App() {
       {/* Gemini AI Settings / API Key Modal */}
       {showApiKeyModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start">
               <div className="flex items-center gap-2.5">
                 <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
@@ -1541,8 +1570,8 @@ export default function App() {
                 </div>
               </div>
               <button 
-                onClick={() => { setShowApiKeyModal(false); setPendingScan(null); }}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+                onClick={() => { setShowApiKeyModal(false); setPendingScan(null); setTestKeyResult(null); }}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
               >
                 <X size={18} />
               </button>
@@ -1555,30 +1584,85 @@ export default function App() {
               </div>
             )}
 
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-800 flex items-center justify-between">
-                <span>Google Gemini API Key</span>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-800">
+                  Google Gemini API Key
+                </label>
                 <a 
                   href="https://aistudio.google.com/app/apikey" 
                   target="_blank" 
                   rel="noreferrer"
-                  className="text-emerald-700 hover:underline flex items-center gap-1 font-normal text-[11px]"
+                  className="text-emerald-700 hover:underline flex items-center gap-1 font-semibold text-[11px]"
                 >
-                  Get free key <ExternalLink size={11} />
+                  Get free key from Google <ExternalLink size={11} />
                 </a>
-              </label>
+              </div>
+
               <div className="relative">
                 <input
-                  type="password"
+                  type="text"
                   value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                  placeholder="Paste your Gemini API key (AIzaSy...)"
+                  onChange={(e) => {
+                    setApiKeyInput(e.target.value);
+                    setTestKeyResult(null);
+                  }}
+                  placeholder="Paste your Gemini API key (e.g. AIzaSy...)"
                   className="w-full text-xs font-mono px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white transition"
                 />
               </div>
-              <p className="text-[11px] text-slate-500">
-                Stored safely in your device browser. Powers real-time OCR transcription of handwriting, paper tables, and inventory entries.
-              </p>
+
+              {/* Test key connection button */}
+              <div className="flex items-center justify-between pt-1">
+                <button
+                  type="button"
+                  onClick={handleTestKey}
+                  disabled={testingKey || !apiKeyInput.trim()}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 disabled:opacity-40 transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <Sparkles size={12} className={testingKey ? "animate-spin" : "text-emerald-600"} />
+                  {testingKey ? "Testing with Google..." : "Test Key Connection"}
+                </button>
+
+                {hasCustomKey && (
+                  <button
+                    type="button"
+                    onClick={handleClearApiKey}
+                    className="text-xs text-red-600 hover:text-red-700 font-medium hover:underline cursor-pointer"
+                  >
+                    Remove Saved Key
+                  </button>
+                )}
+              </div>
+
+              {/* Test key feedback result */}
+              {testKeyResult && (
+                <div className={`p-2.5 rounded-xl border text-xs flex items-start gap-2 ${
+                  testKeyResult.success 
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
+                    : 'bg-red-50 border-red-200 text-red-900'
+                }`}>
+                  {testKeyResult.success ? (
+                    <Check size={15} className="text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertTriangle size={15} className="text-red-600 shrink-0 mt-0.5" />
+                  )}
+                  <span>{testKeyResult.message}</span>
+                </div>
+              )}
+
+              {/* Guidance for Vercel deployment */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 space-y-1.5">
+                <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                  <span>💡 Embed key for all visitors on Vercel:</span>
+                </div>
+                <ol className="list-decimal list-inside space-y-1 text-slate-600">
+                  <li>In Vercel, open your project <strong>Settings &gt; Environment Variables</strong>.</li>
+                  <li>Add Variable Name: <code className="bg-white px-1 py-0.5 rounded border border-slate-200 font-bold text-slate-800">VITE_GEMINI_API_KEY</code></li>
+                  <li>Paste your Gemini API key as the Value and Save.</li>
+                  <li><strong>Important:</strong> Go to <strong>Deployments &gt; Redeploy</strong> on Vercel so the key is built into the website!</li>
+                </ol>
+              </div>
             </div>
 
             <div className="pt-2 flex flex-col sm:flex-row gap-2">
@@ -1595,7 +1679,7 @@ export default function App() {
                 className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs py-2.5 px-4 rounded-xl shadow-xs transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Check size={14} />
-                {pendingScan ? "Save Key & Scan" : "Save API Key"}
+                {pendingScan ? "Save Key & Scan Document" : "Save API Key"}
               </button>
             </div>
           </div>

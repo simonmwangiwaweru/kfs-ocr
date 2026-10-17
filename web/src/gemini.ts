@@ -67,9 +67,13 @@ export interface GeminiExtractionResult {
   modelUsed?: string;
 }
 
+// Declare build-time define variable injected by Vite
+declare const __GEMINI_API_KEY__: string | undefined;
+
 const STORAGE_KEY = 'kfs_gemini_api_key';
 
 export function getStoredGeminiKey(): string {
+  // 1. Check browser localStorage first (user-entered in UI)
   try {
     const fromStorage = localStorage.getItem(STORAGE_KEY);
     if (fromStorage && fromStorage.trim().length > 5) {
@@ -77,21 +81,45 @@ export function getStoredGeminiKey(): string {
     }
   } catch (_) {}
   
-  // Check build / vite env
-  const fromVite = (import.meta as any).env?.VITE_GEMINI_API_KEY;
-  if (fromVite && fromVite.trim().length > 5 && !fromVite.includes('MY_GEMINI_API_KEY')) {
-    return fromVite.trim();
-  }
-
-  // Check process.env fallback
+  // 2. Check injected build token (__GEMINI_API_KEY__) from Vite define
   try {
-    const globalObj = globalThis as any;
-    if (globalObj.process?.env?.GEMINI_API_KEY) {
-      return String(globalObj.process.env.GEMINI_API_KEY).trim();
+    if (typeof __GEMINI_API_KEY__ !== 'undefined' && __GEMINI_API_KEY__ && typeof __GEMINI_API_KEY__ === 'string') {
+      const trimmed = __GEMINI_API_KEY__.trim();
+      if (trimmed.length > 5 && !trimmed.includes('MY_GEMINI_API_KEY')) {
+        return trimmed;
+      }
+    }
+  } catch (_) {}
+
+  // 3. Check Vite import.meta.env
+  try {
+    const fromVite = (import.meta as any).env?.VITE_GEMINI_API_KEY;
+    if (fromVite && typeof fromVite === 'string') {
+      const trimmed = fromVite.trim();
+      if (trimmed.length > 5 && !trimmed.includes('MY_GEMINI_API_KEY')) {
+        return trimmed;
+      }
+    }
+  } catch (_) {}
+
+  // 4. Check process.env fallback
+  try {
+    const fromProcess = (typeof process !== 'undefined' && process.env) 
+      ? (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY) 
+      : undefined;
+    if (fromProcess && typeof fromProcess === 'string') {
+      const trimmed = fromProcess.trim();
+      if (trimmed.length > 5 && !trimmed.includes('MY_GEMINI_API_KEY')) {
+        return trimmed;
+      }
     }
   } catch (_) {}
 
   return '';
+}
+
+export function hasConfiguredGeminiKey(): boolean {
+  return Boolean(getStoredGeminiKey());
 }
 
 export function saveStoredGeminiKey(key: string): void {
@@ -104,6 +132,48 @@ export function clearStoredGeminiKey(): void {
   try {
     localStorage.removeItem(STORAGE_KEY);
   } catch (_) {}
+}
+
+/**
+ * Quickly test if a Gemini API key is valid against Google's API
+ */
+export async function testGeminiApiKey(apiKey: string): Promise<{ success: boolean; message: string }> {
+  const trimmed = apiKey.trim();
+  if (!trimmed) {
+    return { success: false, message: "API key is empty." };
+  }
+
+  const models = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-3.5-flash'];
+  for (const m of models) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${trimmed}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: "hi" }] }],
+          generationConfig: { maxOutputTokens: 2 }
+        })
+      });
+
+      if (res.ok) {
+        return { success: true, message: `Connected successfully to Google Gemini (${m})!` };
+      }
+
+      const errJson = await res.json().catch(() => ({}));
+      const msg = errJson?.error?.message || `HTTP ${res.status}`;
+      if (res.status === 400 || res.status === 403) {
+        return { success: false, message: `Google rejected key: ${msg}` };
+      }
+      if (res.status === 429) {
+        return { success: false, message: "Google API quota exceeded for this key." };
+      }
+    } catch (e: any) {
+      // Network or CORS error
+      return { success: false, message: `Network error: ${e.message || 'Cannot reach Google API'}` };
+    }
+  }
+  return { success: false, message: "Failed to connect to Gemini API." };
 }
 
 /**
@@ -193,12 +263,13 @@ Output STRICT JSON matching this schema:
   };
 
   const modelsToTry = [
+    'gemini-2.5-flash',
     'gemini-flash-latest',
-    'gemini-3.8-flash',
-    'gemini-2.5-flash'
+    'gemini-3.5-flash'
   ];
 
   let lastError: Error | null = null;
+  let rawApiErrorMessage: string = '';
 
   for (const model of modelsToTry) {
     try {
@@ -219,24 +290,27 @@ Output STRICT JSON matching this schema:
       if (response.status === 400 || response.status === 403) {
         const errJson = await response.json().catch(() => ({}));
         const msg = errJson?.error?.message || '';
-        if (msg.includes('API_KEY_INVALID') || msg.includes('API key not valid')) {
-          throw new Error('INVALID_API_KEY');
+        rawApiErrorMessage = msg;
+        if (msg.includes('API_KEY_INVALID') || msg.includes('API key not valid') || msg.includes('bad request')) {
+          throw new Error('INVALID_API_KEY: ' + (msg || 'The API key provided is not valid for Google Gemini API.'));
         }
         if (msg.includes('quota') || msg.includes('Quota exceeded')) {
           throw new Error('QUOTA_EXCEEDED');
         }
+        throw new Error(`API_ERROR: ${msg}`);
       }
 
       if (!response.ok) {
         if (response.status === 404) continue;
-        throw new Error(`HTTP ${response.status}`);
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(`HTTP ${response.status}: ${errJson?.error?.message || response.statusText}`);
       }
 
       const result = await response.json();
       const rawText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
 
       if (!rawText) {
-        throw new Error('No OCR text generated');
+        throw new Error('No OCR text generated by Gemini');
       }
 
       onStatusUpdate?.('3/3: Formatting digitized document layout...');
@@ -251,17 +325,18 @@ Output STRICT JSON matching this schema:
       const parsed = JSON.parse(cleanJson);
       return sanitizeParsedResult(parsed, fileName);
     } catch (err: any) {
-      if (err.message === 'QUOTA_EXCEEDED' || err.message === 'INVALID_API_KEY') {
-        // Fall back gracefully to local intelligence
-        console.warn("Gemini API key quota/auth error, using local document intelligence:", err.message);
-        return recognizeDocumentLocal(imageDataUrl, fileName);
+      if (err.message.includes('INVALID_API_KEY') || err.message === 'QUOTA_EXCEEDED') {
+        throw err;
       }
       lastError = err;
     }
   }
 
-  // Fallback to local recognizer if network fails
-  return recognizeDocumentLocal(imageDataUrl, fileName);
+  // If models all failed or errored out, propagate the actual error
+  if (lastError) {
+    throw lastError;
+  }
+  throw new Error(rawApiErrorMessage ? `Gemini API error: ${rawApiErrorMessage}` : 'Failed to process document with Gemini AI');
 }
 
 function sanitizeParsedResult(parsed: any, fileName: string): GeminiExtractionResult {
