@@ -4,9 +4,12 @@
   "buildCommand": "npm --prefix web run build",
   "outputDirectory": "web/dist",
   "cleanUrls": true,
+  "functions": {
+    "api/ocr.js": { "maxDuration": 60 }
+  },
   "rewrites": [
     {
-      "source": "/((?!assets/|.*\\..*).*)",
+      "source": "/((?!api/|assets/|.*\\..*).*)",
       "destination": "/index.html"
     }
   ]

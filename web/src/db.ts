@@ -10,6 +10,47 @@ export interface DocumentMetadataItem {
   value: string;
 }
 
+export interface CandidatePrediction {
+  value: string;
+  probability: number;
+  reason?: string;
+}
+
+export interface CellComment {
+  id: string;
+  author: string;
+  text: string;
+  timestamp: number;
+  isResolved: boolean;
+  /** Column the note belongs to. Notes saved by older versions have no key and belong to the whole row. */
+  cellKey?: string;
+}
+
+export interface ScanRow {
+  rowNumber: number;
+  /** Column key -> transcribed text. The source of truth for display and export. */
+  cells?: Record<string, string>;
+  /** Column key -> OCR confidence, 0..1. */
+  cellConfidence?: Record<string, number>;
+  candidateValues?: Record<string, CandidatePrediction[]>;
+  /** Cells a person has confirmed or corrected. They stop counting as uncertain. */
+  reviewedCells?: Record<string, boolean>;
+  comments: CellComment[];
+  isVerified?: boolean;
+
+  // Fields written by earlier versions. Still read so old scans open correctly.
+  treeNumber?: string;
+  speciesCode?: string;
+  dbhCm?: string;
+  heightM?: string;
+  healthStatus?: string;
+  notes?: string;
+  confidence?: { treeNumber: number; speciesCode: number; dbhCm: number; heightM: number };
+  flags?: { dbhUncertain: boolean; heightUncertain: boolean };
+}
+
+export type OcrStatus = 'done' | 'pending' | 'failed';
+
 export interface ScanRecord {
   id: string;
   title: string;
@@ -18,6 +59,7 @@ export interface ScanRecord {
   subHeader?: string;
   personName?: string;
   idNumber?: string;
+  summary?: string;
   metadataFields?: DocumentMetadataItem[];
   tableHeaders?: DocumentHeaderColumn[];
   plotCode: string;
@@ -25,40 +67,15 @@ export interface ScanRecord {
   observerName: string;
   date: number;
   imageDataUrl?: string;
+  fileName?: string;
   fileSizeBytes: number;
   fileType: string;
   syncStatus: 'SAVED_OFFLINE' | 'SYNCING' | 'SYNCED';
   isVerified: boolean;
-  rows: Array<{
-    rowNumber: number;
-    treeNumber: string;
-    speciesCode: string;
-    dbhCm: string;
-    heightM: string;
-    healthStatus: string;
-    notes: string;
-    // Dynamic values for any document type (e.g. col1, col2, etc.)
-    cells?: Record<string, string>;
-    candidateValues?: Record<string, Array<{ value: string; probability: number; reason?: string }>>;
-    confidence: {
-      treeNumber: number;
-      speciesCode: number;
-      dbhCm: number;
-      heightM: number;
-    };
-    flags: {
-      dbhUncertain: boolean;
-      heightUncertain: boolean;
-    };
-    comments: Array<{
-      id: string;
-      author: string;
-      text: string;
-      timestamp: number;
-      isResolved: boolean;
-    }>;
-    isVerified?: boolean;
-  }>;
+  /** 'pending' = image saved, waiting for a connection or key. 'failed' = last attempt errored. Absent on older scans (= done). */
+  ocrStatus?: OcrStatus;
+  ocrError?: string;
+  rows: ScanRow[];
 }
 
 export class KfsDatabase extends Dexie {
