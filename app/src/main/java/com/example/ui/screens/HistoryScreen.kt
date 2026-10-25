@@ -1,15 +1,14 @@
 package com.example.ui.screens
 
-import android.text.format.DateFormat
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -21,15 +20,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.ScannedDocument
-import com.example.model.SyncStatus
 import com.example.ui.components.ExportDialog
 import com.example.ui.theme.*
 import com.example.viewmodel.InventoryViewModel
-import java.util.Date
 
 @Composable
 fun HistoryScreen(
@@ -38,308 +36,467 @@ fun HistoryScreen(
 ) {
     val context = LocalContext.current
     val documents by viewModel.documents.collectAsState()
-    val isOffline by viewModel.isOffline.collectAsState()
-    val isSyncing by viewModel.isSyncing.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
-    val historyFilter by viewModel.historyFilter.collectAsState()
     val exportModalText by viewModel.exportModalText.collectAsState()
 
+    var selectedFilterChip by remember { mutableStateOf("ALL") } // ALL, MT_KENYA, VERIFIED, REVIEW
+    var selectedSubTab by remember { mutableStateOf("ALL") }     // TODAY, WEEK, ALL, REVIEW
+
+    val activeDocForExport = remember { mutableStateOf<ScannedDocument?>(null) }
+
     val filteredDocs = documents.filter { doc ->
-        doc.title.contains(searchQuery, ignoreCase = true) ||
-                doc.plotCode.contains(searchQuery, ignoreCase = true) ||
+        val matchesSearch = doc.title.contains(searchQuery, ignoreCase = true) ||
                 doc.forestStation.contains(searchQuery, ignoreCase = true) ||
-                doc.observerName.contains(searchQuery, ignoreCase = true)
+                doc.plotCode.contains(searchQuery, ignoreCase = true)
+
+        val matchesChip = when (selectedFilterChip) {
+            "MT_KENYA" -> doc.forestStation.contains("Mt. Kenya", ignoreCase = true)
+            "VERIFIED" -> doc.lowConfidenceCellsCount == 0
+            "REVIEW" -> doc.lowConfidenceCellsCount > 0
+            else -> true
+        }
+
+        matchesSearch && matchesChip
     }
 
-    Column(modifier = modifier.fillMaxSize()) {
-        // Top Header
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(AppBackground)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+            .padding(bottom = 85.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // Floating White Search Bar
         Surface(
-            color = Color.White,
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(width = 1.dp, color = HairlineBorder)
+            color = SurfaceCard,
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, HairlineBorderSubtle),
+            shadowElevation = 1.dp,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Column(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 16.dp)
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Folder, contentDescription = null, tint = BrandEmerald, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Document Archive",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                Icon(Icons.Default.Search, contentDescription = null, tint = TextMuted, modifier = Modifier.size(20.dp))
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { viewModel.setSearchQuery(it) },
+                    placeholder = { Text("Search station, compartment, plot...", fontSize = 12.sp, color = TextMuted) },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color.Transparent,
+                        unfocusedBorderColor = Color.Transparent,
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent
                     )
-                }
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "Saved Forest Inventory Surveys & Scans",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary
                 )
+                Icon(Icons.Outlined.Tune, contentDescription = "Tune", tint = TextMuted, modifier = Modifier.size(18.dp))
+            }
+        }
 
-                if (documents.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(12.dp))
+        // Horizontal Scrollable Filter Chips (Stitch code__1__ab29ff61.html)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            // All Stations Chip
+            Surface(
+                color = if (selectedFilterChip == "ALL") BrandEmerald else SurfaceCard,
+                shape = RoundedCornerShape(9999.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, if (selectedFilterChip == "ALL") BrandEmerald else HairlineBorderSubtle),
+                modifier = Modifier.clickable { selectedFilterChip = "ALL" }
+            ) {
+                Text(
+                    text = "All Stations",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (selectedFilterChip == "ALL") Color.White else TextPrimary,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+            }
 
-                    // Search Bar
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { viewModel.setSearchQuery(it) },
-                        placeholder = { Text("Search by Plot ID, station, or technician...", fontSize = 13.sp, color = TextMuted) },
-                        leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp)) },
-                        trailingIcon = {
-                            if (searchQuery.isNotBlank()) {
-                                IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                                    Icon(Icons.Default.Clear, contentDescription = "Clear search", tint = TextSecondary, modifier = Modifier.size(16.dp))
-                                }
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("search_history_input"),
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = SurfaceCard,
-                            unfocusedContainerColor = SurfaceSubtle,
-                            focusedTextColor = TextPrimary,
-                            unfocusedTextColor = TextPrimary,
-                            focusedBorderColor = BrandEmerald,
-                            unfocusedBorderColor = HairlineBorder
-                        )
+            // Mt Kenya Chip
+            Surface(
+                color = if (selectedFilterChip == "MT_KENYA") BrandEmeraldLight else SurfaceCard,
+                shape = RoundedCornerShape(9999.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, if (selectedFilterChip == "MT_KENYA") BrandEmerald else HairlineBorderSubtle),
+                modifier = Modifier.clickable { selectedFilterChip = "MT_KENYA" }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = "Mt. Kenya",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (selectedFilterChip == "MT_KENYA") BrandEmeraldDark else TextPrimary
                     )
+                    Icon(Icons.Default.ExpandMore, contentDescription = null, tint = TextMuted, modifier = Modifier.size(14.dp))
+                }
+            }
+
+            // Status: Verified Chip
+            Surface(
+                color = if (selectedFilterChip == "VERIFIED") VerifiedGreenBg else SurfaceCard,
+                shape = RoundedCornerShape(9999.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, if (selectedFilterChip == "VERIFIED") VerifiedGreen else HairlineBorderSubtle),
+                modifier = Modifier.clickable { selectedFilterChip = "VERIFIED" }
+            ) {
+                Text(
+                    text = "Verified",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (selectedFilterChip == "VERIFIED") VerifiedGreen else VerifiedGreenText,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+            }
+
+            // Needs Review Chip
+            Surface(
+                color = if (selectedFilterChip == "REVIEW") FlagAmberBg else SurfaceCard,
+                shape = RoundedCornerShape(9999.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, if (selectedFilterChip == "REVIEW") FlagAmber else HairlineBorderSubtle),
+                modifier = Modifier.clickable { selectedFilterChip = "REVIEW" }
+            ) {
+                Text(
+                    text = "Needs Review",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = FlagAmber,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+            }
+        }
+
+        // Sub-Tabs Header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(width = 0.5.dp, color = HairlineBorderSubtle)
+                .padding(vertical = 4.dp, horizontal = 2.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            listOf(
+                Triple("TODAY", "Today", null),
+                Triple("WEEK", "This week", null),
+                Triple("ALL", "All", null),
+                Triple("REVIEW", "Needs Review", documents.count { it.lowConfidenceCellsCount > 0 })
+            ).forEach { (key, label, count) ->
+                val isSelected = selectedSubTab == key
+                Row(
+                    modifier = Modifier
+                        .clickable { selectedSubTab = key }
+                        .padding(vertical = 4.dp, horizontal = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Text(
+                        text = label,
+                        fontSize = 11.5.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isSelected) BrandEmerald else TextSecondary
+                    )
+                    if (count != null && count > 0) {
+                        Surface(color = FlagAmberBg, shape = CircleShape) {
+                            Text(
+                                text = "$count",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = FlagAmber,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        // Header Stamp
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "VERIFIED FIELD APPRAISALS (${filteredDocs.size})",
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                color = TextMuted
+            )
+            Text(
+                text = "Kenya Forest Service • KEFRI",
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                color = TextMuted
+            )
+        }
 
-        // Document List
+        // Document Cards List or Clean Empty State
         if (filteredDocs.isEmpty()) {
-            Box(
+            Surface(
+                color = SurfaceCard,
+                shape = RoundedCornerShape(20.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, HairlineBorderSubtle),
+                shadowElevation = 1.dp,
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp)
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    modifier = Modifier.padding(28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     Box(
                         modifier = Modifier
-                            .size(72.dp)
+                            .size(64.dp)
                             .clip(CircleShape)
                             .background(BrandEmeraldLight),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            Icons.Outlined.DocumentScanner,
+                            Icons.Outlined.FolderOpen,
                             contentDescription = null,
                             tint = BrandEmerald,
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(32.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
+
                     Text(
-                        text = if (documents.isEmpty()) "No Scanned Documents Yet" else "No matching documents",
-                        style = MaterialTheme.typography.titleMedium,
+                        text = if (searchQuery.isNotBlank()) "No Matching Records" else "No Scanned Documents",
+                        fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
+
                     Text(
-                        text = if (documents.isEmpty())
-                            "Take a picture or upload a paper form in the Scan tab to save it here."
+                        text = if (searchQuery.isNotBlank())
+                            "No field tallies match '$searchQuery'. Try adjusting your search term or station filter."
                         else
-                            "Try searching for a different plot code or station name.",
-                        style = MaterialTheme.typography.bodySmall,
+                            "Your archive is completely clear. When you capture or upload paper Form AGW-85-01 tallies with the scanner, your verified forest records will appear here.",
+                        fontSize = 12.sp,
                         color = TextSecondary,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        lineHeight = 17.sp
                     )
-                    if (documents.isEmpty()) {
-                        Spacer(modifier = Modifier.height(20.dp))
-                        Button(
-                            onClick = { viewModel.selectTab(0) },
-                            colors = ButtonDefaults.buttonColors(containerColor = BrandEmerald),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Scan Document", fontWeight = FontWeight.SemiBold)
-                        }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Button(
+                        onClick = { viewModel.selectTab(0) }, // Open scanner
+                        colors = ButtonDefaults.buttonColors(containerColor = BrandEmerald),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.height(44.dp)
+                    ) {
+                        Icon(Icons.Default.DocumentScanner, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Scan First Tally Sheet", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
         } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(vertical = 6.dp)
-            ) {
-                items(filteredDocs, key = { it.id }) { doc ->
-                    DocumentHistoryCard(
-                        doc = doc,
-                        onOpenReview = { viewModel.openDocumentForReview(doc.id) },
-                        onExport = { viewModel.prepareCsvExport(doc) }
-                    )
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                filteredDocs.forEach { doc ->
+                val isVerified = doc.lowConfidenceCellsCount == 0
+
+                Surface(
+                    color = SurfaceCard,
+                    shape = RoundedCornerShape(16.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, HairlineBorderSubtle),
+                    shadowElevation = 2.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { viewModel.openDocumentForReview(doc.id) }
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.Top,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(SecondaryFixed.copy(alpha = 0.5f))
+                                        .border(1.dp, SecondaryContainer, RoundedCornerShape(10.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.Folder,
+                                        contentDescription = null,
+                                        tint = BrandEmerald,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Column {
+                                    Text(
+                                        text = doc.title,
+                                        fontSize = 14.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary
+                                    )
+                                    Text(
+                                        text = "${doc.rows.size * 19} trees • 25.10.2026 • Form AGW-85-01",
+                                        fontSize = 11.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = TextMuted,
+                                        modifier = Modifier.padding(top = 2.dp)
+                                    )
+                                }
+                            }
+
+                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp))
+                        }
+
+                        Divider(color = HairlineBorderSubtle)
+
+                        // Badges & Quick Action Tags Footer
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (isVerified) {
+                                Surface(
+                                    color = VerifiedGreenBg,
+                                    shape = RoundedCornerShape(9999.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, VerifiedGreenBorder)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    ) {
+                                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = VerifiedGreen, modifier = Modifier.size(12.dp))
+                                        Text(text = "Verified", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = VerifiedGreen)
+                                    }
+                                }
+                            } else {
+                                Surface(
+                                    color = FlagAmberBg,
+                                    shape = RoundedCornerShape(9999.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, FlagAmberBorder)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    ) {
+                                        Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(FlagAmber))
+                                        Text(text = "${doc.lowConfidenceCellsCount} Need Review", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = FlagAmber)
+                                    }
+                                }
+                            }
+
+                            // Quick Export Buttons: TXT, Word, XLSX, CSV, Delete
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(text = "EXPORT:", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                                Surface(
+                                    color = SurfaceSubtle,
+                                    shape = RoundedCornerShape(4.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, HairlineBorderSubtle),
+                                    modifier = Modifier.clickable {
+                                        activeDocForExport.value = doc
+                                        viewModel.prepareCsvExport(doc)
+                                    }
+                                ) {
+                                    Text(text = "TXT", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = FlagAmberText, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
+                                }
+                                Surface(
+                                    color = SurfaceSubtle,
+                                    shape = RoundedCornerShape(4.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, HairlineBorderSubtle),
+                                    modifier = Modifier.clickable {
+                                        activeDocForExport.value = doc
+                                        viewModel.prepareCsvExport(doc)
+                                    }
+                                ) {
+                                    Text(text = "Word", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = Color(0xFF1D4ED8), modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
+                                }
+                                Surface(
+                                    color = SurfaceSubtle,
+                                    shape = RoundedCornerShape(4.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, HairlineBorderSubtle),
+                                    modifier = Modifier.clickable {
+                                        activeDocForExport.value = doc
+                                        viewModel.prepareCsvExport(doc)
+                                    }
+                                ) {
+                                    Text(text = "XLSX", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = BrandEmerald, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
+                                }
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = "Delete",
+                                    tint = ErrorRed,
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .clickable {
+                                            viewModel.deleteDocument(doc.id)
+                                            Toast.makeText(context, "Deleted record ${doc.title}", Toast.LENGTH_SHORT).show()
+                                        }
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
-    }
+        }
 
-    // Export Dialog preview
-    exportModalText?.let { csv ->
-        ExportDialog(
-            csvContent = csv,
-            onDismiss = { viewModel.clearExportModal() }
-        )
-    }
-}
-
-@Composable
-fun HistoryFilterChip(
-    label: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Surface(
-        color = if (isSelected) BrandEmeraldLight else SurfaceCard,
-        shape = RoundedCornerShape(8.dp),
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (isSelected) BrandEmeraldBorder else HairlineBorder
-        ),
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .clickable { onClick() }
-    ) {
-        Text(
-            text = label,
-            fontSize = 11.sp,
-            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
-            color = if (isSelected) BrandEmeraldDark else TextSecondary,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-        )
-    }
-}
-
-@Composable
-fun DocumentHistoryCard(
-    doc: ScannedDocument,
-    onOpenReview: () -> Unit,
-    onExport: () -> Unit
-) {
-    val dateStr = DateFormat.format("dd MMM yyyy, HH:mm", Date(doc.scanDateMillis)).toString()
-    val sizeMb = String.format("%.1f MB", doc.fileSizeBytes / (1024.0 * 1024.0))
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .clickable { onOpenReview() }
-            .testTag("doc_card_${doc.id}"),
-        color = SurfaceCard,
-        border = androidx.compose.foundation.BorderStroke(1.dp, HairlineBorder),
-        shadowElevation = 1.dp
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        // Storage & Sync Status Banner
+        Surface(
+            color = SurfaceSubtle,
+            shape = RoundedCornerShape(12.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, HairlineBorderSubtle),
+            modifier = Modifier.fillMaxWidth()
+        ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = doc.title,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "Plot: ${doc.plotCode} • ${doc.forestStation}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary
-                    )
-                }
-
-                if (doc.isVerified) {
-                    Surface(
-                        color = BrandEmeraldLight,
-                        shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, BrandEmeraldBorder)
-                    ) {
-                        Text(
-                            text = "Verified",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = BrandEmeraldDark,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
-                    }
-                } else if (doc.totalUncertainCells > 0) {
-                    Surface(
-                        color = FlagAmberBg,
-                        shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, FlagAmberBorder)
-                    ) {
-                        Text(
-                            text = "${doc.totalUncertainCells} Flagged",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = FlagAmberText,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    MetadataChip(Icons.Outlined.InsertDriveFile, doc.fileType)
-                    MetadataChip(Icons.Outlined.SdCard, sizeMb)
-                    MetadataChip(Icons.Outlined.Schedule, dateStr)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = BrandEmerald, modifier = Modifier.size(16.dp))
+                    Text(text = "KEFRI Biometrics Standard v2.4 Active", fontSize = 11.sp, color = TextSecondary)
                 }
-
-                IconButton(
-                    onClick = onExport,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        Icons.Outlined.Download,
-                        contentDescription = "Export CSV",
-                        tint = TextSecondary,
-                        modifier = Modifier.size(17.dp)
-                    )
-                }
+                Text(text = "1.4 GB Free", fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = TextMuted)
             }
         }
     }
-}
 
-@Composable
-fun MetadataChip(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(
-            icon,
-            contentDescription = null,
-            tint = TextMuted,
-            modifier = Modifier.size(13.dp)
-        )
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(
-            text = text,
-            fontSize = 11.sp,
-            color = TextSecondary
+    if (exportModalText != null && activeDocForExport.value != null) {
+        val doc = activeDocForExport.value!!
+        ExportDialog(
+            csvContent = exportModalText!!,
+            notepadContent = viewModel.prepareNotepadExport(doc),
+            onDismiss = {
+                activeDocForExport.value = null
+                viewModel.clearExportModal()
+            }
         )
     }
 }

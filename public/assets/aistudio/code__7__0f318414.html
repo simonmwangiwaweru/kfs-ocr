@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>KFS Inventory Scan - Home</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Nunito+Sans:wght@600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS v3 -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Config -->
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-secondary-fixed": "#002113",
+            "primary-fixed-dim": "#82d8a3",
+            "on-secondary": "#ffffff",
+            "secondary-fixed-dim": "#a3d1b6",
+            "on-secondary-container": "#416b55",
+            "surface": "#f8faf9",
+            "surface-container-highest": "#e1e3e2",
+            "on-primary-fixed": "#002110",
+            "on-tertiary-fixed": "#2f1500",
+            "surface-container-high": "#e6e9e8",
+            "outline": "#6f7a71",
+            "on-secondary-fixed-variant": "#254f3a",
+            "error-container": "#ffdad6",
+            "inverse-primary": "#82d8a3",
+            "on-surface-variant": "#3f4941",
+            "outline-variant": "#bec9bf",
+            "surface-dim": "#d8dad9",
+            "tertiary": "#804300",
+            "inverse-on-surface": "#eff1f0",
+            "on-tertiary-container": "#ffe9db",
+            "on-error": "#ffffff",
+            "error": "#ba1a1a",
+            "on-primary": "#ffffff",
+            "background": "#f8faf9",
+            "primary": "#006038",
+            "surface-container": "#eceeed",
+            "primary-fixed": "#9ef5be",
+            "on-tertiary-fixed-variant": "#6e3900",
+            "secondary-container": "#bceacf",
+            "surface-container-lowest": "#ffffff",
+            "surface-container-low": "#f2f4f3",
+            "tertiary-fixed": "#ffdcc3",
+            "primary-container": "#1f7a4d",
+            "on-primary-fixed-variant": "#00522f",
+            "on-primary-container": "#aeffca",
+            "surface-variant": "#e1e3e2",
+            "on-tertiary": "#ffffff",
+            "on-error-container": "#93000a",
+            "tertiary-container": "#a45800",
+            "surface-bright": "#f8faf9",
+            "inverse-surface": "#2e3131",
+            "surface-tint": "#066c41",
+            "on-background": "#191c1c",
+            "on-surface": "#191c1c",
+            "secondary": "#3d6751",
+            "tertiary-fixed-dim": "#ffb77d",
+            "secondary-fixed": "#bfedd2"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "margin-sm": "0.75rem",
+            "space-sm": "0.5rem",
+            "space-xl": "2rem",
+            "space-lg": "1.5rem",
+            "gutter": "0.75rem",
+            "margin": "1rem",
+            "gutter-sm": "0.5rem",
+            "space-xs": "0.25rem",
+            "space-md": "1rem"
+          },
+          "fontFamily": {
+            "label-md": ["JetBrains Mono"],
+            "headline-xl": ["Nunito Sans"],
+            "headline-lg": ["Nunito Sans"],
+            "headline-md": ["Nunito Sans"],
+            "label-sm": ["JetBrains Mono"],
+            "matrix-cell": ["JetBrains Mono"],
+            "body-lg": ["JetBrains Mono"],
+            "body-sm": ["JetBrains Mono"],
+            "body-md": ["JetBrains Mono"]
+          },
+          "fontSize": {
+            "label-md": ["13px", { "lineHeight": "16px", "fontWeight": "600" }],
+            "headline-xl": ["28px", { "lineHeight": "36px", "fontWeight": "700" }],
+            "headline-lg": ["22px", { "lineHeight": "28px", "fontWeight": "700" }],
+            "headline-md": ["18px", { "lineHeight": "24px", "fontWeight": "700" }],
+            "label-sm": ["11px", { "lineHeight": "14px", "fontWeight": "600" }],
+            "matrix-cell": ["13px", { "lineHeight": "16px", "fontWeight": "500" }],
+            "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+            "body-sm": ["12px", { "lineHeight": "16px", "fontWeight": "400" }],
+            "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    
+    @keyframes scanSweep {
+      0% { top: 6%; opacity: 0.2; }
+      15% { opacity: 0.95; }
+      85% { opacity: 0.95; }
+      100% { top: 92%; opacity: 0.2; }
+    }
+    .laser-beam {
+      animation: scanSweep 2.4s ease-in-out infinite alternate;
+    }
+    
+    .tactile-card {
+      box-shadow: 0 6px 18px -8px rgba(19, 62, 43, 0.14);
+    }
+    
+    .primary-btn-tactile {
+      background: linear-gradient(180deg, #2D8F5E 0%, #1F6B43 100%);
+      box-shadow: 0 8px 20px -4px rgba(31, 122, 77, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    }
+
+    .halo-ring {
+      box-shadow: 0 0 0 6px #d1fae5, 0 8px 18px rgba(31, 122, 77, 0.35);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface-container-low text-on-surface antialiased min-h-screen flex items-center justify-center p-0 md:p-6 selection:bg-secondary-container">
+<!-- iPhone 390x844 Shell Viewport Container -->
+<div class="relative w-full max-w-[390px] h-[844px] bg-surface-container-low overflow-hidden flex flex-col justify-between shadow-2xl md:rounded-[48px] md:ring-1 md:ring-outline-variant/40">
+<!-- iOS Dynamic Island & Status Hardware Simulation -->
+<div class="w-full pt-3 px-7 flex justify-between items-center z-30 select-none">
+<span class="font-label-sm text-label-sm font-bold tracking-tight text-on-surface">09:41</span>
+<div class="w-28 h-5 bg-black rounded-full mx-auto"></div>
+<div class="flex items-center gap-1.5 text-on-surface">
+<span class="material-symbols-outlined text-[15px]">signal_cellular_4_bar</span>
+<span class="material-symbols-outlined text-[15px]">wifi</span>
+<span class="material-symbols-outlined text-[18px]">battery_full</span>
+</div>
+</div>
+<!-- TopAppBar (From Shared Components & Style Spec) -->
+<header class="bg-surface dark:bg-inverse-surface shadow-sm dark:shadow-none flex justify-between items-center w-full px-4 py-2 z-20">
+<!-- Leading Menu Button -->
+<button aria-label="Menu" class="w-10 h-10 rounded-full flex items-center justify-center text-on-surface hover:bg-surface-container-high active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[24px]">menu</span>
+</button>
+<!-- Center Title + Sync LED Pill -->
+<div class="flex flex-col items-center">
+<div class="flex items-center gap-1.5">
+<span class="font-headline-md text-headline-md font-extrabold text-on-surface tracking-tight">KFS</span>
+<span class="font-headline-md text-headline-md font-extrabold text-primary-container tracking-tight">Scan</span>
+</div>
+<!-- Hardware Sync Status Pill -->
+<div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-secondary-fixed/50 border border-secondary-container/40">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container animate-pulse"></span>
+<span class="font-label-sm text-[10px] text-primary-container font-semibold uppercase tracking-wider">Cloud Sync Ready</span>
+</div>
+</div>
+<!-- Trailing OCR Search Button -->
+<button aria-label="Search" class="w-10 h-10 rounded-full flex items-center justify-center text-on-surface hover:bg-surface-container-high active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[22px]">search</span>
+</button>
+</header>
+<!-- Main Scrollable Canvas Area -->
+<main class="flex-1 overflow-y-auto px-4 pt-3 pb-28 space-y-3.5 scrollbar-none">
+<!-- Mode Selector (Tactile Floating Tiles) -->
+<section class="grid grid-cols-3 gap-2.5">
+<!-- Tile 1: Form Mode (Active) -->
+<button class="bg-surface-container-lowest ring-1.5 ring-primary-container border-2 border-primary-container/20 rounded-[16px] p-2.5 flex flex-col items-center justify-center text-center tactile-card active:scale-95 transition-transform bg-secondary-container/15">
+<div class="w-8 h-8 rounded-full bg-primary-container/10 flex items-center justify-center mb-1 text-primary-container">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">table_chart</span>
+</div>
+<span class="font-label-sm text-[11px] font-bold text-primary-container">Form Mode</span>
+<span class="font-label-sm text-[9px] text-primary-container/70 font-medium">10x19 Grid</span>
+</button>
+<!-- Tile 2: Batch Mode (Inactive) -->
+<button class="bg-surface-container-lowest ring-1 ring-outline-variant/30 rounded-[16px] p-2.5 flex flex-col items-center justify-center text-center tactile-card opacity-75 hover:opacity-100 active:scale-95 transition-all">
+<div class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center mb-1 text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">layers</span>
+</div>
+<span class="font-label-sm text-[11px] font-bold text-on-surface-variant">Batch Mode</span>
+<span class="font-label-sm text-[9px] text-outline font-normal">Multi-leaf</span>
+</button>
+<!-- Tile 3: Gallery (Inactive) -->
+<button class="bg-surface-container-lowest ring-1 ring-outline-variant/30 rounded-[16px] p-2.5 flex flex-col items-center justify-center text-center tactile-card opacity-75 hover:opacity-100 active:scale-95 transition-all">
+<div class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center mb-1 text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">photo_library</span>
+</div>
+<span class="font-label-sm text-[11px] font-bold text-on-surface-variant">Gallery</span>
+<span class="font-label-sm text-[9px] text-outline font-normal">Stored Media</span>
+</button>
+</section>
+<!-- Central Scanner Viewfinder Card -->
+<section class="relative bg-surface-container-lowest rounded-[22px] p-2 tactile-card border border-outline-variant/30 overflow-hidden">
+<!-- Viewport Container with Hardware Optics Frame -->
+<div class="relative w-full h-[270px] rounded-[18px] overflow-hidden bg-inverse-surface flex items-center justify-center">
+<!-- Background Stumpage Appraisal Form Mock Image -->
+<img class="absolute inset-0 w-full h-full object-cover opacity-90 filter contrast-105" data-alt="Close-up optical document scan preview showing Kenya Forest Service Stumpage Appraisal Form AGW-85-01 laid flat on an inspection clipboard under crisp diffused daylight. The document features printed tabular grid lines, handwritten inventory tree species codes, diameter numbers, and official institutional stamps with deep vegetative green undertones and warm paper texture." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDzqbpAxlitpiOKSL5Oay2ktSH0x18n9gsDYR347ftFfSCUrJCmhq8IK6thlk5p1qiKHkta8EDtolr8shkaWqCirZ_nTZGPv8MXrPUERNmSx0onNODpuPPUUqXYSrOayawzXvLaRdmE27qOlW-Av2vM9dZiFpVdF5FCIbaN61xxKy0C8h-RZY_Np7Jw4GLZeYbpYePoQZ8fc8FJFU2hat2BHBZSU3hdbaFFV-L7DtcUTG5GJ9vQBKRa9Q"/>
+<!-- Semi-darkened Tactical Vignette Overlay -->
+<div class="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60 pointer-events-none"></div>
+<!-- Outer Grey Corner Framing Brackets -->
+<div class="absolute inset-3 border-2 border-outline-variant/40 rounded-xl pointer-events-none"></div>
+<!-- Bold Forest Green Inner Corner Targeting Brackets -->
+<div class="absolute top-5 left-5 w-6 h-6 border-t-4 border-l-4 border-primary-fixed-dim rounded-tl pointer-events-none shadow-sm"></div>
+<div class="absolute top-5 right-5 w-6 h-6 border-t-4 border-r-4 border-primary-fixed-dim rounded-tr pointer-events-none shadow-sm"></div>
+<div class="absolute bottom-5 left-5 w-6 h-6 border-b-4 border-l-4 border-primary-fixed-dim rounded-bl pointer-events-none shadow-sm"></div>
+<div class="absolute bottom-5 right-5 w-6 h-6 border-b-4 border-r-4 border-primary-fixed-dim rounded-br pointer-events-none shadow-sm"></div>
+<!-- Central Crosshair Optical Marker -->
+<div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+<div class="w-9 h-9 border border-primary-fixed-dim/40 rounded-full flex items-center justify-center">
+<span class="w-1.5 h-1.5 bg-primary-fixed rounded-full shadow-lg"></span>
+</div>
+</div>
+<!-- Animated Laser Scan Beam -->
+<div class="laser-beam absolute left-4 right-4 h-[2px] bg-primary-fixed shadow-[0_0_12px_3px_rgba(130,216,163,0.9)] pointer-events-none z-10 flex items-center">
+<span class="absolute left-0 -top-1 w-2 h-2.5 bg-primary-fixed rounded-full shadow-[0_0_8px_#82d8a3]"></span>
+<span class="absolute right-0 -top-1 w-2 h-2.5 bg-primary-fixed rounded-full shadow-[0_0_8px_#82d8a3]"></span>
+</div>
+<!-- Form Header Telemetry Readout -->
+<div class="absolute top-3 left-4 right-4 flex justify-between items-center pointer-events-none">
+<span class="font-label-sm text-[10px] tracking-wider text-surface-container-lowest bg-black/60 backdrop-blur-md px-2 py-0.5 rounded border border-white/10 font-mono">
+              FORM: AGW-85-01
+            </span>
+<div class="flex items-center gap-1 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded border border-white/10 text-primary-fixed font-mono text-[10px]">
+<span class="material-symbols-outlined text-[12px] text-primary-fixed" style="font-variation-settings: 'FILL' 1;">lens</span>
+<span>AUTO-FOCUS</span>
+</div>
+</div>
+<!-- Guidance Chip Overlay -->
+<div class="absolute bottom-3 left-4 right-4 flex justify-center pointer-events-none">
+<div class="bg-inverse-surface/85 backdrop-blur-md border border-white/15 px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg">
+<span class="material-symbols-outlined text-primary-fixed-dim text-[16px]">crop_free</span>
+<span class="font-label-sm text-[10.5px] text-inverse-on-surface font-semibold tracking-tight">
+                Align Stumpage Appraisal Form AGW-85-01 within frame
+              </span>
+</div>
+</div>
+</div>
+</section>
+<!-- Action Buttons Below Viewfinder -->
+<section class="space-y-2.5">
+<!-- Primary Trigger Button: Take Photo -->
+<button class="w-full primary-btn-tactile text-on-primary rounded-[14px] py-3.5 px-4 flex items-center justify-center gap-2.5 active:scale-[0.98] transition-all">
+<div class="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">photo_camera</span>
+</div>
+<span class="font-headline-md text-[16px] font-extrabold tracking-wide uppercase">Take Photo</span>
+</button>
+<!-- Secondary Button Cluster -->
+<div class="grid grid-cols-2 gap-2.5">
+<!-- Browse Files -->
+<button class="bg-surface-container-lowest border border-outline-variant/40 rounded-[14px] p-2.5 flex flex-col items-center justify-center text-center tactile-card hover:bg-surface-container-low active:scale-95 transition-all">
+<div class="flex items-center gap-1.5 text-on-surface">
+<span class="material-symbols-outlined text-[19px] text-primary-container">upload_file</span>
+<span class="font-headline-md text-[13px] font-bold text-on-surface">Browse Files</span>
+</div>
+<span class="font-label-sm text-[10px] text-outline mt-0.5 font-medium">PNG, JPG, PDF</span>
+</button>
+<!-- Load Sample AGW-85-01 -->
+<button class="bg-surface-container-lowest border-1.5 border-primary-container/40 rounded-[14px] p-2.5 flex flex-col items-center justify-center text-center tactile-card bg-secondary-fixed/20 hover:bg-secondary-fixed/40 active:scale-95 transition-all">
+<div class="flex items-center gap-1.5 text-primary-container">
+<span class="material-symbols-outlined text-[19px] text-primary-container" style="font-variation-settings: 'FILL' 1;">eco</span>
+<span class="font-headline-md text-[13px] font-bold text-primary-container">Load Sample</span>
+</div>
+<span class="font-label-sm text-[10px] text-primary-container/80 mt-0.5 font-semibold">AGW-85-01 Demo</span>
+</button>
+</div>
+</section>
+<!-- Offline Queue Banner Card -->
+<section class="bg-surface-container-lowest rounded-[18px] p-3 tactile-card border border-outline-variant/35 flex items-center justify-between gap-2.5">
+<div class="flex items-center gap-2.5">
+<!-- Amber Status Warning Icon -->
+<div class="w-9 h-9 rounded-full bg-tertiary-fixed flex items-center justify-center text-tertiary-container shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">cloud_off</span>
+</div>
+<div>
+<div class="flex items-center gap-1.5">
+<h3 class="font-headline-md text-[13px] font-bold text-on-surface">Offline Queue: 2 sheets waiting</h3>
+<span class="w-2 h-2 rounded-full bg-tertiary-container"></span>
+</div>
+<p class="font-label-sm text-[10.5px] text-outline font-medium">They'll sync when you're back online</p>
+</div>
+</div>
+<!-- Circular Green Sync Arrow Button -->
+<button aria-label="Manual Sync" class="w-8 h-8 rounded-full bg-secondary-container hover:bg-primary-fixed text-primary-container flex items-center justify-center active:scale-90 transition-transform shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-[18px] font-bold">sync</span>
+</button>
+</section>
+</main>
+<!-- BottomNavBar (From Shared Components & Style Spec) -->
+<!-- Destination count: 3 | Labels: Archive, Scan, Settings | Icons: folder, document_scanner, vpn_key -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-4">
+<div class="bg-surface-container-lowest dark:bg-surface-container-high shadow-xl dark:shadow-none ring-1 ring-outline-variant/30 dark:ring-outline/20 rounded-full w-full max-w-md mx-auto h-[64px] px-6 flex items-center justify-between relative">
+<!-- Tab 1: Archive (Inactive) -->
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors active:scale-90 duration-200">
+<span class="material-symbols-outlined text-[24px]">folder</span>
+<span class="font-label-sm text-label-sm font-semibold tracking-tight">Archive</span>
+</button>
+<!-- Tab 2: Scan (Active Center Halo Anchor) -->
+<div class="relative -top-5 flex flex-col items-center justify-center">
+<button aria-label="Scan Trigger" class="w-14 h-14 rounded-full bg-primary-container text-on-primary flex items-center justify-center halo-ring active:scale-90 transition-transform duration-200">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1;">document_scanner</span>
+</button>
+<span class="font-label-sm text-label-sm font-bold text-primary-container mt-1">Scan</span>
+</div>
+<!-- Tab 3: Settings (Inactive) -->
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors active:scale-90 duration-200">
+<span class="material-symbols-outlined text-[24px]">vpn_key</span>
+<span class="font-label-sm text-label-sm font-semibold tracking-tight">Settings</span>
+</button>
+</div>
+</nav>
+<!-- Home Indicator Bar -->
+<div class="absolute bottom-1 inset-x-0 flex justify-center z-50 pointer-events-none">
+<div class="w-32 h-1 bg-on-surface/30 rounded-full"></div>
+</div>
+</div>
+</body></html>

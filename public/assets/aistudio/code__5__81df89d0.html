@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>KFS Scan - Matrix Review</title>
+<!-- Fonts: Nunito Sans & JetBrains Mono -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Nunito+Sans:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-secondary-fixed": "#002113",
+            "primary-fixed-dim": "#82d8a3",
+            "on-secondary": "#ffffff",
+            "secondary-fixed-dim": "#a3d1b6",
+            "on-secondary-container": "#416b55",
+            "surface": "#f8faf9",
+            "surface-container-highest": "#e1e3e2",
+            "on-primary-fixed": "#002110",
+            "on-tertiary-fixed": "#2f1500",
+            "surface-container-high": "#e6e9e8",
+            "outline": "#6f7a71",
+            "on-secondary-fixed-variant": "#254f3a",
+            "error-container": "#ffdad6",
+            "inverse-primary": "#82d8a3",
+            "on-surface-variant": "#3f4941",
+            "outline-variant": "#bec9bf",
+            "surface-dim": "#d8dad9",
+            "tertiary": "#804300",
+            "inverse-on-surface": "#eff1f0",
+            "on-tertiary-container": "#ffe9db",
+            "on-error": "#ffffff",
+            "error": "#ba1a1a",
+            "on-primary": "#ffffff",
+            "background": "#f8faf9",
+            "primary": "#006038",
+            "surface-container": "#eceeed",
+            "primary-fixed": "#9ef5be",
+            "on-tertiary-fixed-variant": "#6e3900",
+            "secondary-container": "#bceacf",
+            "surface-container-lowest": "#ffffff",
+            "surface-container-low": "#f2f4f3",
+            "tertiary-fixed": "#ffdcc3",
+            "primary-container": "#1f7a4d",
+            "on-primary-container": "#aeffca",
+            "surface-variant": "#e1e3e2",
+            "on-tertiary": "#ffffff",
+            "on-error-container": "#93000a",
+            "tertiary-container": "#a45800",
+            "surface-bright": "#f8faf9",
+            "inverse-surface": "#2e3131",
+            "surface-tint": "#066c41",
+            "on-background": "#191c1c",
+            "on-surface": "#191c1c",
+            "secondary": "#3d6751",
+            "tertiary-fixed-dim": "#ffb77d",
+            "secondary-fixed": "#bfedd2"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "2xl": "1rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "margin-sm": "0.75rem",
+            "space-sm": "0.5rem",
+            "space-xl": "2rem",
+            "space-lg": "1.5rem",
+            "gutter": "0.75rem",
+            "margin": "1rem",
+            "gutter-sm": "0.5rem",
+            "space-xs": "0.25rem",
+            "space-md": "1rem"
+          },
+          "fontFamily": {
+            "label-md": ["JetBrains Mono"],
+            "headline-xl": ["Nunito Sans"],
+            "headline-lg": ["Nunito Sans"],
+            "headline-md": ["Nunito Sans"],
+            "label-sm": ["JetBrains Mono"],
+            "matrix-cell": ["JetBrains Mono"],
+            "body-lg": ["JetBrains Mono"],
+            "body-sm": ["JetBrains Mono"],
+            "body-md": ["JetBrains Mono"]
+          },
+          "fontSize": {
+            "label-md": ["13px", { "lineHeight": "16px", "fontWeight": "600" }],
+            "headline-xl": ["28px", { "lineHeight": "36px", "fontWeight": "700" }],
+            "headline-lg": ["22px", { "lineHeight": "28px", "fontWeight": "700" }],
+            "headline-md": ["18px", { "lineHeight": "24px", "fontWeight": "700" }],
+            "label-sm": ["11px", { "lineHeight": "14px", "fontWeight": "600" }],
+            "matrix-cell": ["13px", { "lineHeight": "16px", "fontWeight": "500" }],
+            "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+            "body-sm": ["12px", { "lineHeight": "16px", "fontWeight": "400" }],
+            "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    /* Tabular figures for telemetry accuracy */
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+    /* Subtle forest green hardware shadow and specular shine */
+    .tactile-card {
+      background: #ffffff;
+      box-shadow: 0 6px 18px -8px rgba(19, 62, 43, 0.14);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 4px 16px -4px rgba(31, 122, 77, 0.1);
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      height: 4px;
+      width: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #bec9bf;
+      border-radius: 9999px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface-container-low text-on-surface antialiased flex justify-center items-start min-h-screen p-0 sm:py-6">
+<!-- iPhone Canvas Shell: 390px x 844px Frame -->
+<main class="w-full max-w-[390px] min-h-screen sm:min-h-[844px] sm:max-h-[844px] bg-[#F3F5F4] flex flex-col relative sm:rounded-[40px] sm:shadow-2xl sm:ring-1 sm:ring-outline-variant/30 overflow-hidden select-none">
+<!-- Top System Header Status Bar -->
+<header class="w-full bg-[#F3F5F4] pt-3 pb-2 px-4 flex flex-col gap-2 z-20 shrink-0">
+<div class="flex justify-between items-center w-full">
+<!-- Back Navigation Button -->
+<button aria-label="Go back" class="w-9 h-9 rounded-full bg-surface-container-lowest flex items-center justify-center text-primary shadow-sm active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[20px]">arrow_back</span>
+</button>
+<!-- Centered Document Title -->
+<div class="flex flex-col items-center">
+<h1 class="font-headline-md text-headline-md font-bold tracking-tight text-on-surface">Matrix Review</h1>
+<span class="font-label-sm text-label-sm text-outline tracking-wider">FORM AGW-85-01</span>
+</div>
+<!-- Sync Status Pill Indicator -->
+<div class="flex items-center gap-1.5 px-2.5 py-1 bg-surface-container-lowest rounded-full shadow-sm">
+<span class="w-2 h-2 rounded-full bg-primary-container animate-pulse"></span>
+<span class="font-label-sm text-label-sm text-primary font-semibold">Online</span>
+</div>
+</div>
+<!-- Segmented View Toggle: Grid vs Original Photo -->
+<div class="w-full bg-surface-container p-1 rounded-xl flex items-center gap-1">
+<button class="flex-1 py-1.5 px-3 rounded-lg bg-surface-container-lowest shadow-sm flex items-center justify-center gap-1.5 text-primary transition-all">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">grid_on</span>
+<span class="font-label-md text-label-md font-bold">Grid</span>
+</button>
+<button class="flex-1 py-1.5 px-3 rounded-lg text-on-surface-variant hover:text-on-surface flex items-center justify-center gap-1.5 transition-all">
+<span class="material-symbols-outlined text-[16px]">photo_library</span>
+<span class="font-label-md text-label-md">Original Photo</span>
+</button>
+</div>
+</header>
+<!-- Scrollable Content Canvas -->
+<div class="flex-1 overflow-y-auto px-3.5 pb-24 space-y-3 custom-scrollbar">
+<!-- Metadata Section: Floating Rounded Card -->
+<section class="tactile-card rounded-2xl p-3.5 border border-outline-variant/30">
+<div class="flex items-center justify-between pb-2 mb-2 border-b border-surface-container">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary text-[18px]">nature</span>
+<span class="font-label-sm text-label-sm text-primary font-bold uppercase tracking-wider">Forest Inventory Record</span>
+</div>
+<span class="font-label-sm text-label-sm bg-surface-container px-2 py-0.5 rounded text-on-surface-variant">24.10.2026</span>
+</div>
+<!-- Key Appraisal Metadata Grid -->
+<div class="grid grid-cols-2 gap-2 font-label-sm text-label-sm">
+<div class="bg-surface-container-low p-2 rounded-lg">
+<span class="text-outline block text-[10px] leading-3 uppercase font-medium">Station</span>
+<span class="font-bold text-on-surface truncate block mt-0.5">Mt. Kenya East</span>
+</div>
+<div class="bg-surface-container-low p-2 rounded-lg">
+<span class="text-outline block text-[10px] leading-3 uppercase font-medium">Compartment</span>
+<span class="font-bold text-on-surface block mt-0.5">Comp 14</span>
+</div>
+<div class="bg-surface-container-low p-2 rounded-lg col-span-2">
+<span class="text-outline block text-[10px] leading-3 uppercase font-medium">Species Taxon</span>
+<span class="font-bold text-primary block mt-0.5 italic">Cupressus lusitanica (Cypress)</span>
+</div>
+<div class="bg-surface-container-low p-2 rounded-lg">
+<span class="text-outline block text-[10px] leading-3 uppercase font-medium">Planting Year</span>
+<span class="font-bold text-on-surface block mt-0.5">1998 <span class="font-normal text-outline text-[10px]">(Age 28)</span></span>
+</div>
+<div class="bg-surface-container-low p-2 rounded-lg">
+<span class="text-outline block text-[10px] leading-3 uppercase font-medium">Officer In-Charge</span>
+<span class="font-bold text-on-surface block mt-0.5">J. Kariuki</span>
+</div>
+</div>
+</section>
+<!-- Verification Progress Strip -->
+<section class="tactile-card rounded-2xl p-3 border border-outline-variant/30 flex flex-col gap-2">
+<div class="flex items-center justify-between font-label-sm text-label-sm">
+<div class="flex items-center gap-1.5 font-bold">
+<span class="material-symbols-outlined text-primary text-[16px]" style="font-variation-settings: 'FILL' 1;">verified</span>
+<span class="text-on-surface">176/190 verified</span>
+</div>
+<div class="flex items-center gap-1 bg-[#FEF3C7] text-[#D97706] px-2 py-0.5 rounded-full font-bold">
+<span class="w-1.5 h-1.5 rounded-full bg-[#D97706]"></span>
+<span>14 need review</span>
+</div>
+</div>
+<!-- Dual Progress Gauge Bar -->
+<div class="w-full h-2 bg-surface-container rounded-full overflow-hidden flex">
+<div class="h-full bg-primary-container" style="width: 92.6%;"></div>
+<div class="h-full bg-[#D97706]" style="width: 7.4%;"></div>
+</div>
+</section>
+<!-- 10x19 Matrix Grid Card Container -->
+<section class="tactile-card rounded-2xl p-3 border border-outline-variant/30">
+<div class="flex items-center justify-between pb-2 mb-1.5">
+<div class="flex items-center gap-1">
+<span class="font-headline-md text-headline-md font-bold text-on-surface">Stumpage DBH</span>
+<span class="font-label-sm text-label-sm text-outline">(cm)</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="flex items-center gap-1 font-label-sm text-label-sm text-outline">
+<span class="w-2 h-2 rounded-full bg-[#D1FAE5] ring-1 ring-primary/40"></span>
+<span>≥85%</span>
+</div>
+<div class="flex items-center gap-1 font-label-sm text-label-sm text-[#D97706]">
+<span class="w-2 h-2 rounded-full bg-[#FEF3C7] ring-1 ring-[#D97706]"></span>
+<span>&lt;85%</span>
+</div>
+</div>
+</div>
+<!-- 10x19 Matrix Table with Two-Axis Sticky Scrolling -->
+<div class="relative overflow-x-auto max-h-[300px] border border-surface-container rounded-xl custom-scrollbar bg-surface-container-lowest">
+<table class="w-full border-collapse font-matrix-cell text-matrix-cell tabular-nums">
+<thead>
+<tr class="bg-surface-container-high border-b border-surface-container sticky top-0 z-30">
+<!-- Top-Left Corner Origin -->
+<th class="sticky left-0 top-0 z-40 bg-surface-container-high px-2 py-2 text-center text-[10px] font-bold text-outline uppercase min-w-[42px] border-r border-surface-container">
+                  R\C
+                </th>
+<!-- 19 Sticky Column Headers (C1 to C19) -->
+<th class="px-2 py-2 text-center text-[10px] font-bold text-on-surface-variant min-w-[50px]">C1</th>
+<th class="px-2 py-2 text-center text-[10px] font-bold text-on-surface-variant min-w-[50px]">C2</th>
+<th class="px-2 py-2 text-center text-[10px] font-bold text-on-surface-variant min-w-[50px]">C3</th>
+<th class="px-2 py-2 text-center text-[10px] font-bold text-on-surface-variant min-w-[50px]">C4</th>
+<th class="px-2 py-2 text-center text-[10px] font-bold text-on-surface-variant min-w-[50px]">C5</th>
+<th class="px-2 py-2 text-center text-[10px] font-bold text-on-surface-variant min-w-[50px]">C6</th>
+<th class="px-2 py-2 text-center text-[10px] font-bold text-on-surface-variant min-w-[50px]">C7</th>
+<th class="px-2 py-2 text-center text-[10px] font-bold text-primary min-w-[54px] bg-secondary-container/40">C8</th>
+<th class="px-2 py-2 text-center text-[10px] font-bold text-on-surface-variant min-w-[50px]">C9</th>
+<th class="px-2 py-2 text-center text-[10px] font-bold text-on-surface-variant min-w-[50px]">C10</th>
+<th class="px-2 py-2 text-center text-[10px] font-bold text-on-surface-variant min-w-[50px]">C11</th>
+<th class="px-2 py-2 text-center text-[10px] font-bold text-on-surface-variant min-w-[50px]">C12</th>
+<th class="px-2 py-2 text-center text-[10px] font-bold text-on-surface-variant min-w-[50px]">C13</th>
+<th class="px-2 py-2 text-center text-[10px] font-bold text-on-surface-variant min-w-[50px]">C14</th>
+<th class="px-2 py-2 text-center text-[10px] font-bold text-on-surface-variant min-w-[50px]">C15</th>
+<th class="px-2 py-2 text-center text-[10px] font-bold text-on-surface-variant min-w-[50px]">C16</th>
+<th class="px-2 py-2 text-center text-[10px] font-bold text-on-surface-variant min-w-[50px]">C17</th>
+<th class="px-2 py-2 text-center text-[10px] font-bold text-on-surface-variant min-w-[50px]">C18</th>
+<th class="px-2 py-2 text-center text-[10px] font-bold text-on-surface-variant min-w-[50px]">C19</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="sticky left-0 z-20 bg-surface-container px-2 py-2 text-center font-bold text-outline border-r border-surface-container text-[11px]">R1</td>
+<td class="px-2 py-2 text-right">24.5</td>
+<td class="px-2 py-2 text-right">32.1</td>
+<td class="px-2 py-2 text-right">18.0</td>
+<td class="px-2 py-2 text-right">41.6</td>
+<td class="px-2 py-2 text-right">28.4</td>
+<td class="px-2 py-2 text-right">29.8</td>
+<td class="px-2 py-2 text-right">33.2</td>
+<td class="px-2 py-2 text-right">27.0</td>
+<td class="px-2 py-2 text-right">35.4</td>
+<td class="px-2 py-2 text-right">21.8</td>
+<td class="px-2 py-2 text-right">30.2</td>
+<td class="px-2 py-2 text-right">28.9</td>
+<td class="px-2 py-2 text-right">22.4</td>
+<td class="px-2 py-2 text-right">34.7</td>
+<td class="px-2 py-2 text-right">26.1</td>
+<td class="px-2 py-2 text-right">31.0</td>
+<td class="px-2 py-2 text-right">39.5</td>
+<td class="px-2 py-2 text-right">23.8</td>
+<td class="px-2 py-2 text-right">27.4</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="sticky left-0 z-20 bg-surface-container px-2 py-2 text-center font-bold text-outline border-r border-surface-container text-[11px]">R2</td>
+<td class="px-2 py-2 text-right">31.2</td>
+<td class="px-2 py-2 text-right">26.4</td>
+<td class="px-2 py-2 text-right">29.1</td>
+<td class="px-2 py-2 text-right">37.5</td>
+<td class="px-2 py-2 text-right">20.8</td>
+<td class="px-2 py-2 text-right">38.4</td>
+<td class="px-2 py-2 text-right">25.6</td>
+<td class="px-2 py-2 text-right">33.0</td>
+<td class="px-2 py-2 text-right">19.5</td>
+<td class="px-2 py-2 text-right">28.7</td>
+<td class="px-2 py-2 text-right">32.9</td>
+<td class="px-2 py-2 text-right">24.2</td>
+<td class="px-2 py-2 text-right">30.8</td>
+<td class="px-2 py-2 text-right">27.3</td>
+<td class="px-2 py-2 text-right">36.1</td>
+<td class="px-2 py-2 text-right">22.0</td>
+<td class="px-2 py-2 text-right">29.4</td>
+<td class="px-2 py-2 text-right">34.6</td>
+<td class="px-2 py-2 text-right">25.0</td>
+</tr>
+<!-- Row 3 (Contains Target Low Confidence Cell R3-C8) -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="sticky left-0 z-20 bg-surface-container px-2 py-2 text-center font-bold text-outline border-r border-surface-container text-[11px]">R3</td>
+<td class="px-2 py-2 text-right">22.8</td>
+<td class="px-2 py-2 text-right">30.5</td>
+<td class="px-2 py-2 text-right">27.4</td>
+<td class="px-2 py-2 text-right">35.9</td>
+<td class="px-2 py-2 text-right">31.0</td>
+<td class="px-2 py-2 text-right">24.8</td>
+<td class="px-2 py-2 text-right">28.3</td>
+<!-- ACTIVE SELECTED CELL R3-C8: Low Confidence <85% with halo ring -->
+<td class="px-1.5 py-1 text-right bg-[#FEF3C7] text-[#D97706] font-bold relative ring-2 ring-primary-container z-10 shadow-sm">
+<div class="flex items-center justify-end gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-[#D97706] shrink-0"></span>
+<span>27.5</span>
+</div>
+<!-- Magnifier Confidence Pill Float Indicator -->
+<div class="absolute -top-6 -right-2 bg-inverse-surface text-inverse-on-surface px-1.5 py-0.5 rounded shadow text-[9px] font-mono flex items-center gap-0.5 pointer-events-none whitespace-nowrap">
+<span class="material-symbols-outlined text-[10px] text-tertiary-fixed">warning</span>
+<span>72% conf</span>
+</div>
+</td>
+<td class="px-2 py-2 text-right">33.7</td>
+<td class="px-2 py-2 text-right">29.0</td>
+<td class="px-2 py-2 text-right">21.5</td>
+<td class="px-2 py-2 text-right">38.2</td>
+<td class="px-2 py-2 text-right">26.9</td>
+<td class="px-2 py-2 text-right">31.4</td>
+<td class="px-2 py-2 text-right">20.2</td>
+<td class="px-2 py-2 text-right">36.8</td>
+<td class="px-2 py-2 text-right">28.1</td>
+<td class="px-2 py-2 text-right">25.7</td>
+<td class="px-2 py-2 text-right">30.6</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="sticky left-0 z-20 bg-surface-container px-2 py-2 text-center font-bold text-outline border-r border-surface-container text-[11px]">R4</td>
+<td class="px-2 py-2 text-right">26.1</td>
+<td class="px-2 py-2 text-right">34.3</td>
+<td class="px-2 py-2 text-right">22.9</td>
+<td class="px-2 py-2 text-right">28.5</td>
+<td class="px-2 py-2 text-right">36.0</td>
+<td class="px-2 py-2 text-right">19.8</td>
+<td class="px-2 py-2 text-right">32.7</td>
+<td class="px-2 py-2 text-right">27.6</td>
+<td class="px-2 py-2 text-right">31.8</td>
+<td class="px-2 py-2 text-right">24.3</td>
+<td class="px-2 py-2 text-right">35.2</td>
+<td class="px-2 py-2 text-right">29.6</td>
+<td class="px-2 py-2 text-right">23.1</td>
+<td class="px-2 py-2 text-right">30.9</td>
+<td class="px-2 py-2 text-right">28.4</td>
+<td class="px-2 py-2 text-right">33.5</td>
+<td class="px-2 py-2 text-right">21.7</td>
+<td class="px-2 py-2 text-right">37.0</td>
+<td class="px-2 py-2 text-right">26.8</td>
+</tr>
+<!-- Row 5 -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="sticky left-0 z-20 bg-surface-container px-2 py-2 text-center font-bold text-outline border-r border-surface-container text-[11px]">R5</td>
+<td class="px-2 py-2 text-right">33.4</td>
+<td class="px-2 py-2 text-right">27.8</td>
+<td class="px-2 py-2 text-right">31.1</td>
+<td class="px-2 py-2 text-right">25.2</td>
+<td class="px-2 py-2 text-right">29.7</td>
+<td class="px-2 py-2 text-right">38.1</td>
+<td class="px-2 py-2 text-right">21.4</td>
+<td class="px-2 py-2 text-right">34.0</td>
+<td class="px-2 py-2 text-right">26.5</td>
+<td class="px-2 py-2 text-right">32.3</td>
+<td class="px-2 py-2 text-right">23.6</td>
+<td class="px-2 py-2 text-right">36.9</td>
+<td class="px-2 py-2 text-right">28.0</td>
+<td class="px-2 py-2 text-right">30.4</td>
+<td class="px-2 py-2 text-right">24.9</td>
+<td class="px-2 py-2 text-right">35.8</td>
+<td class="px-2 py-2 text-right">27.2</td>
+<td class="px-2 py-2 text-right">31.6</td>
+<td class="px-2 py-2 text-right">22.5</td>
+</tr>
+<!-- Row 6 -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="sticky left-0 z-20 bg-surface-container px-2 py-2 text-center font-bold text-outline border-r border-surface-container text-[11px]">R6</td>
+<td class="px-2 py-2 text-right">29.3</td>
+<td class="px-2 py-2 text-right">23.7</td>
+<td class="px-2 py-2 text-right">36.4</td>
+<td class="px-2 py-2 text-right">30.1</td>
+<td class="px-2 py-2 text-right">27.5</td>
+<td class="px-2 py-2 text-right">33.8</td>
+<td class="px-2 py-2 text-right">25.9</td>
+<td class="px-2 py-2 text-right">28.8</td>
+<td class="px-2 py-2 text-right">37.2</td>
+<td class="px-2 py-2 text-right">20.4</td>
+<td class="px-2 py-2 text-right">34.5</td>
+<td class="px-2 py-2 text-right">26.7</td>
+<td class="px-2 py-2 text-right">32.0</td>
+<td class="px-2 py-2 text-right">22.8</td>
+<td class="px-2 py-2 text-right">39.1</td>
+<td class="px-2 py-2 text-right">28.6</td>
+<td class="px-2 py-2 text-right">30.8</td>
+<td class="px-2 py-2 text-right">24.1</td>
+<td class="px-2 py-2 text-right">35.0</td>
+</tr>
+<!-- Row 7 -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="sticky left-0 z-20 bg-surface-container px-2 py-2 text-center font-bold text-outline border-r border-surface-container text-[11px]">R7</td>
+<td class="px-2 py-2 text-right">25.8</td>
+<td class="px-2 py-2 text-right">32.6</td>
+<td class="px-2 py-2 text-right">28.2</td>
+<td class="px-2 py-2 text-right">21.9</td>
+<td class="px-2 py-2 text-right">35.7</td>
+<td class="px-2 py-2 text-right">26.3</td>
+<td class="px-2 py-2 text-right">30.5</td>
+<td class="px-2 py-2 text-right">24.0</td>
+<td class="px-2 py-2 text-right">38.9</td>
+<td class="px-2 py-2 text-right">27.1</td>
+<td class="px-2 py-2 text-right">31.7</td>
+<td class="px-2 py-2 text-right">22.2</td>
+<td class="px-2 py-2 text-right">36.3</td>
+<td class="px-2 py-2 text-right">29.5</td>
+<td class="px-2 py-2 text-right">23.4</td>
+<td class="px-2 py-2 text-right">34.1</td>
+<td class="px-2 py-2 text-right">27.9</td>
+<td class="px-2 py-2 text-right">33.0</td>
+<td class="px-2 py-2 text-right">20.9</td>
+</tr>
+<!-- Row 8 -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="sticky left-0 z-20 bg-surface-container px-2 py-2 text-center font-bold text-outline border-r border-surface-container text-[11px]">R8</td>
+<td class="px-2 py-2 text-right">37.6</td>
+<td class="px-2 py-2 text-right">29.4</td>
+<td class="px-2 py-2 text-right">24.6</td>
+<td class="px-2 py-2 text-right">33.3</td>
+<td class="px-2 py-2 text-right">22.5</td>
+<td class="px-2 py-2 text-right">36.7</td>
+<td class="px-2 py-2 text-right">28.9</td>
+<td class="px-2 py-2 text-right">31.2</td>
+<td class="px-2 py-2 text-right">25.4</td>
+<td class="px-2 py-2 text-right">34.8</td>
+<td class="px-2 py-2 text-right">20.7</td>
+<td class="px-2 py-2 text-right">30.0</td>
+<td class="px-2 py-2 text-right">27.5</td>
+<td class="px-2 py-2 text-right">35.6</td>
+<td class="px-2 py-2 text-right">21.3</td>
+<td class="px-2 py-2 text-right">38.0</td>
+<td class="px-2 py-2 text-right">26.2</td>
+<td class="px-2 py-2 text-right">32.4</td>
+<td class="px-2 py-2 text-right">28.7</td>
+</tr>
+<!-- Row 9 -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="sticky left-0 z-20 bg-surface-container px-2 py-2 text-center font-bold text-outline border-r border-surface-container text-[11px]">R9</td>
+<td class="px-2 py-2 text-right">21.0</td>
+<td class="px-2 py-2 text-right">35.5</td>
+<td class="px-2 py-2 text-right">30.7</td>
+<td class="px-2 py-2 text-right">26.6</td>
+<td class="px-2 py-2 text-right">32.2</td>
+<td class="px-2 py-2 text-right">23.9</td>
+<td class="px-2 py-2 text-right">37.4</td>
+<td class="px-2 py-2 text-right">29.2</td>
+<td class="px-2 py-2 text-right">22.7</td>
+<td class="px-2 py-2 text-right">36.2</td>
+<td class="px-2 py-2 text-right">28.5</td>
+<td class="px-2 py-2 text-right">33.9</td>
+<td class="px-2 py-2 text-right">25.1</td>
+<td class="px-2 py-2 text-right">31.5</td>
+<td class="px-2 py-2 text-right">27.0</td>
+<td class="px-2 py-2 text-right">20.5</td>
+<td class="px-2 py-2 text-right">34.9</td>
+<td class="px-2 py-2 text-right">29.8</td>
+<td class="px-2 py-2 text-right">23.3</td>
+</tr>
+<!-- Row 10 -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="sticky left-0 z-20 bg-surface-container px-2 py-2 text-center font-bold text-outline border-r border-surface-container text-[11px]">R10</td>
+<td class="px-2 py-2 text-right">34.2</td>
+<td class="px-2 py-2 text-right">28.1</td>
+<td class="px-2 py-2 text-right">33.6</td>
+<td class="px-2 py-2 text-right">24.7</td>
+<td class="px-2 py-2 text-right">39.0</td>
+<td class="px-2 py-2 text-right">27.7</td>
+<td class="px-2 py-2 text-right">21.6</td>
+<td class="px-2 py-2 text-right">35.3</td>
+<td class="px-2 py-2 text-right">30.3</td>
+<td class="px-2 py-2 text-right">25.5</td>
+<td class="px-2 py-2 text-right">37.8</td>
+<td class="px-2 py-2 text-right">22.6</td>
+<td class="px-2 py-2 text-right">32.8</td>
+<td class="px-2 py-2 text-right">28.3</td>
+<td class="px-2 py-2 text-right">36.5</td>
+<td class="px-2 py-2 text-right">23.0</td>
+<td class="px-2 py-2 text-right">31.3</td>
+<td class="px-2 py-2 text-right">26.4</td>
+<td class="px-2 py-2 text-right">38.7</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- Bottom Action Dock Card: Cell Inspector & Export Control -->
+<section class="tactile-card rounded-2xl p-3 border border-outline-variant/30 space-y-2.5">
+<div class="flex items-center justify-between">
+<!-- Quick Cell Filter Chip -->
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FEF3C7] text-[#D97706] font-label-sm text-label-sm font-bold border border-[#D97706]/20 active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[16px]">filter_list</span>
+<span>14 Low Confidence</span>
+</button>
+<!-- Format Extension Badges -->
+<div class="flex items-center gap-1 font-label-sm text-label-sm font-bold text-outline">
+<span class="px-1.5 py-0.5 rounded bg-surface-container text-primary">.xlsx</span>
+<span class="px-1.5 py-0.5 rounded bg-surface-container">.csv</span>
+<span class="px-1.5 py-0.5 rounded bg-surface-container">.docx</span>
+<span class="px-1.5 py-0.5 rounded bg-surface-container">.txt</span>
+</div>
+</div>
+<!-- Prominent Primary Action Button (Forest Green Gradient + Specular Line) -->
+<button class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-b from-[#2D8F5E] to-[#1F6B43] text-on-primary font-headline-md text-headline-md font-bold tracking-wide flex items-center justify-center gap-2 shadow-lg shadow-primary-container/30 border-t border-white/30 active:scale-[0.98] transition-transform">
+<span class="material-symbols-outlined text-[20px]">ios_share</span>
+<span>Export Appraisal Matrix</span>
+</button>
+</section>
+</div>
+<!-- Global Floating Bottom Navigation Bar (Preserved as defined in Shared Components JSON) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-4">
+<div class="bg-surface-container-lowest mx-auto max-w-md w-full rounded-full shadow-xl ring-1 ring-outline-variant/30 px-6 py-2 flex justify-between items-center relative">
+<!-- Archive Destination (Item 0) -->
+<button class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors active:scale-90 duration-200">
+<span class="material-symbols-outlined text-[22px]">folder</span>
+<span class="font-label-sm text-label-sm font-medium">Archive</span>
+</button>
+<!-- Center Raised Scan Trigger (Item 1 - Primary Contextual Scan) -->
+<button aria-label="Scan Document" class="relative -top-4 w-14 h-14 rounded-full bg-gradient-to-b from-[#2D8F5E] to-[#1F6B43] text-on-primary flex items-center justify-center shadow-lg shadow-primary-container/40 ring-4 ring-[#DDF1E6] active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1;">document_scanner</span>
+</button>
+<!-- Settings Destination (Item 2) -->
+<button class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors active:scale-90 duration-200">
+<span class="material-symbols-outlined text-[22px]">vpn_key</span>
+<span class="font-label-sm text-label-sm font-medium">Settings</span>
+</button>
+</div>
+</nav>
+</main>
+</body></html>

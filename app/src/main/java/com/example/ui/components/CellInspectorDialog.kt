@@ -2,8 +2,10 @@ package com.example.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -21,305 +23,252 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.example.model.MatrixCell
 import com.example.ui.theme.*
-import com.example.viewmodel.SelectedCellTarget
 
 @Composable
 fun CellInspectorDialog(
-    target: SelectedCellTarget,
+    docTitle: String,
+    rowNumber: Int,
+    colKey: String,
+    cell: MatrixCell,
     onDismiss: () -> Unit,
-    onSaveValue: (String) -> Unit,
-    onAddComment: (author: String, text: String) -> Unit,
-    onToggleResolveComment: (commentId: String) -> Unit
+    onUpdateValue: (newDbh: String, newHeight: String) -> Unit,
+    onAddComment: (author: String, text: String) -> Unit
 ) {
-    var editValue by remember(target) { mutableStateOf(target.cellData.value) }
-    var authorInput by remember { mutableStateOf("") }
-    var commentInput by remember { mutableStateOf("") }
+    var editDbhInput by remember { mutableStateOf(cell.dbhValue) }
+    var editHeightInput by remember { mutableStateOf(cell.heightValue) }
+    var noteInput by remember { mutableStateOf("") }
 
-    val confidence = target.cellData.confidence
-    val isUncertain = confidence.isUncertain
-    val confidencePct = (confidence.confidence * 100).toInt()
-
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = SurfaceCard,
-            border = androidx.compose.foundation.BorderStroke(1.dp, HairlineBorder),
-            shadowElevation = 8.dp,
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 16.dp)
-                .testTag("cell_inspector_dialog")
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.5f))
+                .clickable { onDismiss() },
+            contentAlignment = Alignment.BottomCenter
         ) {
-            Column(
+            Surface(
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                color = SurfaceCard,
                 modifier = Modifier
-                    .padding(20.dp)
-                    .verticalScroll(rememberScrollState())
+                    .fillMaxWidth()
+                    .heightIn(max = 740.dp)
+                    .clickable(enabled = false) {}
+                    .testTag("cell_inspector_sheet")
             ) {
-                // Header with field and row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
                 ) {
-                    Column {
-                        Text(
-                            text = "${target.columnName} • Row #${target.rowNumber}",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Original OCR: '${target.cellData.originalOcrValue}'",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary
-                        )
-                    }
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.testTag("close_inspector_btn")
+                    // Top Drag Handle Pill
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .size(width = 36.dp, height = 5.dp)
+                            .clip(RoundedCornerShape(9999.dp))
+                            .background(HairlineBorder)
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Header Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Close, contentDescription = "Close dialog", tint = TextSecondary)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Uncertainty / Confidence Status Banner
-                val bannerBg = if (isUncertain) FlagAmberBg else VerifiedGreenBg
-                val bannerBorder = if (isUncertain) FlagAmberBorder else VerifiedGreenBorder
-                val bannerText = if (isUncertain) FlagAmberText else VerifiedGreenText
-                val bannerIcon = if (isUncertain) Icons.Default.Warning else Icons.Default.CheckCircle
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(bannerBg)
-                        .border(1.dp, bannerBorder, RoundedCornerShape(8.dp))
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = bannerIcon,
-                        contentDescription = null,
-                        tint = bannerText,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (isUncertain) {
-                            "Uncertainty Flagged: $confidencePct% Confidence"
-                        } else {
-                            "High Confidence: $confidencePct%"
-                        },
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = bannerText
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = "Extracted Value",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextPrimary
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-
-                OutlinedTextField(
-                    value = editValue,
-                    onValueChange = { editValue = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("cell_value_input"),
-                    singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    textStyle = MaterialTheme.typography.titleMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    ),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = BrandEmerald,
-                        unfocusedBorderColor = HairlineBorder
-                    ),
-                    trailingIcon = {
-                        if (editValue != target.cellData.value) {
-                            Button(
-                                onClick = { onSaveValue(editValue) },
-                                colors = ButtonDefaults.buttonColors(containerColor = BrandEmerald),
-                                shape = RoundedCornerShape(6.dp),
-                                modifier = Modifier
-                                    .padding(end = 4.dp)
-                                    .testTag("save_cell_btn"),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                            ) {
-                                Text("Save", fontSize = 12.sp, color = Color.White)
-                            }
-                        }
-                    }
-                )
-
-                if (target.cellData.isManuallyEdited) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "✓ Manually verified by reviewer",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = VerifiedGreen
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(18.dp))
-                HorizontalDivider(color = HairlineBorder)
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Reviewer Comments Section
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Reviewer Audit Notes (${target.cellData.comments.size})",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                    Icon(
-                        Icons.Outlined.ModeComment,
-                        contentDescription = null,
-                        tint = BrandEmerald,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (target.cellData.comments.isEmpty()) {
-                    Text(
-                        text = "No notes recorded on this field yet.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextMuted
-                    )
-                } else {
-                    target.cellData.comments.forEach { comment ->
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            color = if (comment.isResolved) SurfaceSubtle.copy(alpha = 0.6f) else SurfaceSubtle,
-                            shape = RoundedCornerShape(8.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, HairlineBorder)
-                        ) {
-                            Column(modifier = Modifier.padding(10.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = comment.author,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextPrimary
-                                    )
-                                    Text(
-                                        text = if (comment.isResolved) "Resolved" else "Open",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = if (comment.isResolved) VerifiedGreen else FlagAmber
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(4.dp))
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Icon(Icons.Default.Park, contentDescription = null, tint = BrandEmerald, modifier = Modifier.size(14.dp))
                                 Text(
-                                    text = comment.text,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = TextSecondary
+                                    text = "FORM AGW-85-01 AUDIT",
+                                    fontSize = 10.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    color = BrandEmerald
                                 )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                TextButton(
-                                    onClick = { onToggleResolveComment(comment.id) },
-                                    contentPadding = PaddingValues(0.dp)
+                            }
+                            Text(
+                                text = "Row $rowNumber, $colKey",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        }
+
+                        IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = TextMuted)
+                        }
+                    }
+
+                    Divider(modifier = Modifier.padding(vertical = 10.dp), color = HairlineBorderSubtle)
+
+                    // Scrollable Inspector Body
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        // Visibility Issue Warning Banner (if applicable)
+                        if (!cell.visibilityIssue.isNullOrBlank()) {
+                            Surface(
+                                color = FlagAmberBg,
+                                shape = RoundedCornerShape(10.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, FlagAmberBorder),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text(
-                                        text = if (comment.isResolved) "Mark Unresolved" else "Mark Resolved",
-                                        fontSize = 11.sp,
-                                        color = BrandEmerald
-                                    )
+                                    Icon(Icons.Default.WarningAmber, contentDescription = null, tint = FlagAmber, modifier = Modifier.size(18.dp))
+                                    Column {
+                                        Text(text = "Optical Legibility Specification", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = FlagAmberText)
+                                        Text(text = cell.visibilityIssue, fontSize = 11.sp, color = TextSecondary)
+                                    }
                                 }
                             }
                         }
-                    }
-                }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                        // Physical Slip Preview (Optical Crop)
+                        Surface(
+                            color = SurfaceSubtle,
+                            shape = RoundedCornerShape(14.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, HairlineBorderSubtle),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(text = "OPTICAL RAW CAPTURE", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Column {
+                                            Text(text = "DBH: ${cell.dbhValue} cm", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1D4ED8))
+                                            Text(text = "Height: ${if (cell.heightValue.isNotBlank()) "${cell.heightValue} m" else "N/A"}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFDC2626))
+                                        }
+                                    }
+                                    Text(
+                                        text = "${(cell.confidence * 100).toInt()}% Confidence • Form Slip",
+                                        fontSize = 10.sp,
+                                        color = if (cell.isUncertain) FlagAmber else VerifiedGreen,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
 
-                OutlinedTextField(
-                    value = authorInput,
-                    onValueChange = { authorInput = it },
-                    label = { Text("Your Name / Role") },
-                    placeholder = { Text("e.g. M. Musyoka (Field Officer)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = BrandEmerald,
-                        unfocusedBorderColor = HairlineBorder
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedTextField(
-                    value = commentInput,
-                    onValueChange = { commentInput = it },
-                    label = { Text("Add Field Comment") },
-                    placeholder = { Text("e.g. Faint handwriting; verified against plot tally") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2,
-                    shape = RoundedCornerShape(10.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = BrandEmerald,
-                        unfocusedBorderColor = HairlineBorder
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Button(
-                    onClick = {
-                        if (commentInput.isNotBlank()) {
-                            onAddComment(authorInput.ifBlank { "Reviewer" }, commentInput)
-                            commentInput = ""
+                                // 4x Crop Card
+                                Box(
+                                    modifier = Modifier
+                                        .size(width = 90.dp, height = 64.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color.White)
+                                        .border(1.dp, HairlineBorder, RoundedCornerShape(8.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(text = cell.heightValue, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFDC2626))
+                                        Text(text = cell.dbhValue, fontSize = 18.sp, fontWeight = FontWeight.Black, color = Color(0xFF1D4ED8))
+                                    }
+                                }
+                            }
                         }
-                    },
-                    enabled = commentInput.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandEmerald),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier
-                        .align(Alignment.End)
-                        .testTag("add_comment_btn")
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Add Comment", fontSize = 12.sp)
-                }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                        // MANUAL OVERRIDE INPUTS
+                        Text(text = "VERIFY OR OVERRIDE NUMBERS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    FilledTonalButton(
-                        onClick = onDismiss,
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = SurfaceSubtle, contentColor = TextPrimary),
-                        modifier = Modifier.testTag("dismiss_inspector_btn")
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Blue DBH Input
+                            OutlinedTextField(
+                                value = editDbhInput,
+                                onValueChange = { editDbhInput = it },
+                                label = { Text("DBH in Blue (cm)", fontSize = 11.sp, color = Color(0xFF1D4ED8)) },
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF2563EB),
+                                    unfocusedBorderColor = HairlineBorder
+                                ),
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            // Red Height Input
+                            OutlinedTextField(
+                                value = editHeightInput,
+                                onValueChange = { editHeightInput = it },
+                                label = { Text("Height in Red (m)", fontSize = 11.sp, color = Color(0xFFDC2626)) },
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFFDC2626),
+                                    unfocusedBorderColor = HairlineBorder
+                                ),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        // Quick Note
+                        OutlinedTextField(
+                            value = noteInput,
+                            onValueChange = { noteInput = it },
+                            label = { Text("Surveyor Audit Note (optional)", fontSize = 11.sp) },
+                            placeholder = { Text("e.g. Confirmed height using Suunto hypsometer", fontSize = 11.sp) },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = BrandEmerald,
+                                unfocusedBorderColor = HairlineBorder
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    Divider(modifier = Modifier.padding(vertical = 10.dp), color = HairlineBorderSubtle)
+
+                    // Action Buttons Footer
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text("Done", fontSize = 12.sp)
+                        OutlinedButton(
+                            onClick = onDismiss,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp)
+                        ) {
+                            Text("Cancel", fontSize = 13.sp, color = TextPrimary)
+                        }
+
+                        Button(
+                            onClick = {
+                                if (noteInput.isNotBlank()) {
+                                    onAddComment("Surveyor", noteInput)
+                                }
+                                onUpdateValue(editDbhInput, editHeightInput)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = BrandEmerald),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .weight(1.3f)
+                                .height(46.dp)
+                                .testTag("save_cell_edit_btn")
+                        ) {
+                            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Save & Verify", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }

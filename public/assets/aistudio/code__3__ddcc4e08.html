@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>KFS Scan - Cell Inspector</title>
+<!-- Google Fonts: Nunito & JetBrains Mono -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Nunito+Sans:wght@600;700;800&amp;family=Nunito:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-secondary-fixed": "#002113",
+            "primary-fixed-dim": "#82d8a3",
+            "on-secondary": "#ffffff",
+            "secondary-fixed-dim": "#a3d1b6",
+            "on-secondary-container": "#416b55",
+            "surface": "#f8faf9",
+            "surface-container-highest": "#e1e3e2",
+            "on-primary-fixed": "#002110",
+            "on-tertiary-fixed": "#2f1500",
+            "surface-container-high": "#e6e9e8",
+            "outline": "#6f7a71",
+            "on-secondary-fixed-variant": "#254f3a",
+            "error-container": "#ffdad6",
+            "inverse-primary": "#82d8a3",
+            "on-surface-variant": "#3f4941",
+            "outline-variant": "#bec9bf",
+            "surface-dim": "#d8dad9",
+            "tertiary": "#804300",
+            "inverse-on-surface": "#eff1f0",
+            "on-tertiary-container": "#ffe9db",
+            "on-error": "#ffffff",
+            "error": "#ba1a1a",
+            "on-primary": "#ffffff",
+            "background": "#f8faf9",
+            "primary": "#006038",
+            "surface-container": "#eceeed",
+            "primary-fixed": "#9ef5be",
+            "on-tertiary-fixed-variant": "#6e3900",
+            "secondary-container": "#bceacf",
+            "surface-container-lowest": "#ffffff",
+            "surface-container-low": "#f2f4f3",
+            "tertiary-fixed": "#ffdcc3",
+            "primary-container": "#1f7a4d",
+            "on-primary-fixed-variant": "#00522f",
+            "on-primary-container": "#aeffca",
+            "surface-variant": "#e1e3e2",
+            "on-tertiary": "#ffffff",
+            "on-error-container": "#93000a",
+            "tertiary-container": "#a45800",
+            "surface-bright": "#f8faf9",
+            "inverse-surface": "#2e3131",
+            "surface-tint": "#066c41",
+            "on-background": "#191c1c",
+            "on-surface": "#191c1c",
+            "secondary": "#3d6751",
+            "tertiary-fixed-dim": "#ffb77d",
+            "secondary-fixed": "#bfedd2"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "margin-sm": "0.75rem",
+            "space-sm": "0.5rem",
+            "space-xl": "2rem",
+            "space-lg": "1.5rem",
+            "gutter": "0.75rem",
+            "margin": "1rem",
+            "gutter-sm": "0.5rem",
+            "space-xs": "0.25rem",
+            "space-md": "1rem"
+          },
+          "fontFamily": {
+            "label-md": ["JetBrains Mono", "monospace"],
+            "headline-xl": ["Nunito Sans", "Nunito", "sans-serif"],
+            "headline-lg": ["Nunito Sans", "Nunito", "sans-serif"],
+            "headline-md": ["Nunito Sans", "Nunito", "sans-serif"],
+            "label-sm": ["JetBrains Mono", "monospace"],
+            "matrix-cell": ["JetBrains Mono", "monospace"],
+            "body-lg": ["JetBrains Mono", "monospace"],
+            "body-sm": ["JetBrains Mono", "monospace"],
+            "body-md": ["JetBrains Mono", "monospace"]
+          },
+          "fontSize": {
+            "label-md": ["13px", { "lineHeight": "16px", "fontWeight": "600" }],
+            "headline-xl": ["28px", { "lineHeight": "36px", "fontWeight": "700" }],
+            "headline-lg": ["22px", { "lineHeight": "28px", "fontWeight": "700" }],
+            "headline-md": ["18px", { "lineHeight": "24px", "fontWeight": "700" }],
+            "label-sm": ["11px", { "lineHeight": "14px", "fontWeight": "600" }],
+            "matrix-cell": ["13px", { "lineHeight": "16px", "fontWeight": "500" }],
+            "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+            "body-sm": ["12px", { "lineHeight": "16px", "fontWeight": "400" }],
+            "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-family: 'Material Symbols Outlined';
+      font-weight: normal;
+      font-style: normal;
+      font-size: 20px;
+      line-height: 1;
+      display: inline-block;
+      text-transform: none;
+      letter-spacing: normal;
+      word-wrap: normal;
+      white-space: nowrap;
+      direction: ltr;
+      -webkit-font-smoothing: antialiased;
+    }
+    .tactile-btn {
+      background: linear-gradient(180deg, #2D8F5E 0%, #1F6B43 100%);
+      box-shadow: 0 8px 20px -4px rgba(31, 122, 77, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    }
+    .tactile-btn:active {
+      transform: scale(0.98);
+      box-shadow: 0 2px 6px -1px rgba(31, 122, 77, 0.5), inset 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+    .sheet-shadow {
+      box-shadow: 0 -12px 36px -4px rgba(19, 62, 43, 0.25), 0 -2px 10px rgba(0, 0, 0, 0.04);
+    }
+    .grain-overlay {
+      background-image: radial-gradient(rgba(31, 122, 77, 0.08) 1px, transparent 0);
+      background-size: 8px 8px;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface font-body-md text-on-surface h-full overflow-hidden select-none">
+<!-- ================= CANVAS BACKGROUND: MATRIX REVIEW SCREEN (Dimmed & Blurred) ================= -->
+<div class="relative h-full w-full flex flex-col pointer-events-none opacity-40 blur-[1px]">
+<!-- TopAppBar Anchor from Shared Components -->
+<header class="bg-surface text-primary flex justify-between items-center w-full px-4 py-2 shadow-sm">
+<div class="flex items-center space-x-2">
+<span class="material-symbols-outlined text-primary cursor-pointer">menu</span>
+<span class="font-headline-md text-headline-md font-bold text-on-surface tracking-tight">KFS Scan</span>
+<span class="ml-2 px-2 py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-label-sm text-label-sm flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+          Plot AGW-85
+        </span>
+</div>
+<div class="flex items-center space-x-2">
+<span class="material-symbols-outlined text-primary cursor-pointer">search</span>
+</div>
+</header>
+<!-- Synthetic Appraisal 10x19 Matrix Grid Preview -->
+<div class="flex-1 p-3 overflow-hidden bg-surface-container-low flex flex-col gap-2">
+<div class="flex items-center justify-between text-on-surface-variant font-label-sm text-label-sm px-1">
+<span>Stumpage Appraisal Form • Compartment 4B</span>
+<span class="font-label-sm">Grid: 10 × 19</span>
+</div>
+<!-- Sample Grid Fragment -->
+<div class="border border-outline-variant/50 rounded-xl bg-surface-container-lowest overflow-hidden">
+<div class="grid grid-cols-6 border-b border-outline-variant/30 bg-surface-container-high py-1 px-2 font-label-sm text-label-sm text-on-surface-variant font-bold">
+<div class="text-center">Col 5</div>
+<div class="text-center">Col 6</div>
+<div class="text-center">Col 7</div>
+<div class="text-center text-primary-container">Col 8</div>
+<div class="text-center">Col 9</div>
+<div class="text-center">Col 10</div>
+</div>
+<div class="divide-y divide-outline-variant/20 font-matrix-cell text-matrix-cell">
+<div class="grid grid-cols-6 py-2 px-2 items-center text-center">
+<span class="text-on-surface">312</span>
+<span class="text-on-surface">198</span>
+<span class="text-on-surface">240</span>
+<span class="text-on-surface font-bold text-primary">310</span>
+<span class="text-on-surface">285</span>
+<span class="text-on-surface">190</span>
+</div>
+<div class="grid grid-cols-6 py-2 px-2 items-center text-center">
+<span class="text-on-surface">185</span>
+<span class="text-on-surface">220</span>
+<span class="text-on-surface">204</span>
+<span class="text-on-surface">178</span>
+<span class="text-on-surface">305</span>
+<span class="text-on-surface">212</span>
+</div>
+<!-- Target Row 3 Column 8 Highlighted Cell -->
+<div class="grid grid-cols-6 py-2 px-2 items-center text-center bg-surface-container">
+<span class="text-on-surface">290</span>
+<span class="text-on-surface">334</span>
+<span class="text-on-surface">195</span>
+<span class="bg-[#FEF3C7] border-2 border-[#D97706] text-[#D97706] font-bold rounded-lg py-1 px-1 relative shadow-sm">
+              275
+              <span class="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-[#D97706]"></span>
+</span>
+<span class="text-on-surface">260</span>
+<span class="text-on-surface">188</span>
+</div>
+<div class="grid grid-cols-6 py-2 px-2 items-center text-center">
+<span class="text-on-surface">210</span>
+<span class="text-on-surface">245</span>
+<span class="text-on-surface">280</span>
+<span class="text-on-surface">312</span>
+<span class="text-on-surface">225</span>
+<span class="text-on-surface">298</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Dimmed Modal Backdrop -->
+<div class="fixed inset-0 bg-on-surface/40 backdrop-blur-[2px] z-40 transition-opacity"></div>
+<!-- ================= SCREEN 4: CELL INSPECTOR BOTTOM SHEET MODAL ================= -->
+<!-- Contextual note: This is a task-focused inspection sub-sheet with back/close action; Global bottom navigation is suppressed -->
+<section aria-labelledby="sheet-title" aria-modal="true" class="fixed inset-x-0 bottom-0 z-50 max-w-xl mx-auto flex flex-col max-h-[813px] bg-surface-container-lowest rounded-t-[28px] sheet-shadow overflow-hidden border-t border-outline-variant/20 animate-in slide-in-from-bottom duration-300" role="dialog">
+<!-- Top Tactile Drag Handle Pill -->
+<div class="w-full flex items-center justify-center pt-3 pb-1 cursor-grab active:cursor-grabbing">
+<div class="w-[36px] h-1.5 rounded-full bg-outline-variant/70"></div>
+</div>
+<!-- Sheet Header -->
+<div class="px-5 pt-1 pb-3 flex items-start justify-between border-b border-surface-container-high/60">
+<div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-secondary text-sm">forest</span>
+<span class="font-label-sm text-label-sm text-secondary uppercase tracking-wider font-semibold">STUMPAGE APPRAISAL AGW-85-01</span>
+</div>
+<h2 class="font-headline-lg text-headline-lg font-bold text-on-surface tracking-tight mt-0.5" id="sheet-title">
+          Row 3, Column 8
+        </h2>
+</div>
+<button aria-label="Close Inspector" class="w-9 h-9 rounded-full bg-surface-container hover:bg-surface-container-highest flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors active:scale-95">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+<!-- Sheet Scrollable Content -->
+<div class="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+<!-- 1. Current Value Highlight Card -->
+<div class="rounded-2xl p-4 bg-[#F8FAFC] border border-outline-variant/40 shadow-sm relative overflow-hidden">
+<div class="flex items-start justify-between gap-3">
+<div class="flex-1">
+<span class="font-label-sm text-label-sm text-on-surface-variant font-medium tracking-wide">OCR VALUE DETECTED</span>
+<div class="flex items-baseline gap-2 mt-1">
+<span class="font-matrix-cell text-[40px] leading-none font-bold text-on-surface tracking-tight tabular-nums">275</span>
+<span class="font-label-md text-label-md text-on-surface-variant">mm DBH</span>
+</div>
+<!-- Prominent Amber Confidence Badge -->
+<div class="inline-flex items-center gap-1.5 mt-3 px-2.5 py-1 rounded-full bg-[#FEF3C7] border border-[#FDE68A] text-[#D97706]">
+<span class="w-2 h-2 rounded-full bg-[#D97706] animate-pulse"></span>
+<span class="font-label-sm text-label-sm font-semibold tracking-wide">78% Confidence • Review Required</span>
+</div>
+</div>
+<!-- Physical Document High-Contrast Paper Crop Zoom -->
+<div class="flex flex-col items-center">
+<div class="w-24 h-20 rounded-xl bg-surface-container-low border-2 border-outline-variant/60 shadow-inner overflow-hidden relative group">
+<!-- Physical Scanned Crop Mockup with faint horizontal stroke and smudged ink -->
+<div class="absolute inset-0 bg-[#F4F1EA] grain-overlay flex items-center justify-center">
+<!-- Optical grid crosshair -->
+<div class="absolute inset-0 border border-primary/10"></div>
+<div class="absolute w-full h-[1px] bg-red-400/30 top-1/2"></div>
+<div class="absolute h-full w-[1px] bg-red-400/30 left-1/2"></div>
+<!-- Handwritten Digit Graphic Representation -->
+<div class="relative font-serif font-bold text-2xl text-[#1E293B] italic tracking-tighter opacity-90 select-none">
+                  2<span class="relative">7<span class="absolute -top-1 left-0 right-0 h-[2px] bg-[#334155]/60 rotate-6"></span></span>5
+                  <div class="absolute -bottom-1 right-2 w-3 h-2 rounded-full bg-[#334155]/25 blur-[1px]"></div>
+</div>
+</div>
+<!-- Zoom Reticle Tag -->
+<span class="absolute bottom-1 right-1 bg-on-surface/75 text-surface-container-lowest font-label-sm text-[9px] px-1 rounded backdrop-blur-sm">
+                4× CROP
+              </span>
+</div>
+<span class="font-label-sm text-[10px] text-on-surface-variant mt-1">Raw Field Slip</span>
+</div>
+</div>
+</div>
+<!-- 2. Alternative OCR Readings Section -->
+<div>
+<div class="flex items-center justify-between mb-2">
+<span class="font-label-md text-label-md font-bold text-on-surface">Candidate Readings (Gemini Vision OCR)</span>
+<span class="font-label-sm text-label-sm text-primary flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[14px]">auto_awesome</span> 2 Found
+          </span>
+</div>
+<div class="space-y-2.5">
+<!-- Card 1: Active / Primary Selected -->
+<div class="p-3.5 rounded-2xl bg-surface-container-lowest border-2 border-primary-container shadow-sm flex items-center justify-between transition-all">
+<div class="flex items-center space-x-3">
+<div class="w-10 h-10 rounded-xl bg-secondary-container flex items-center justify-center text-primary font-matrix-cell font-bold text-base">
+                275
+              </div>
+<div>
+<div class="flex items-center gap-2">
+<span class="font-label-md text-label-md font-bold text-on-surface">275 mm</span>
+<span class="px-2 py-0.5 rounded-full bg-[#FEF3C7] text-[#D97706] font-label-sm text-label-sm font-semibold">78%</span>
+<span class="text-xs font-label-sm text-primary-container font-semibold">(Primary Match)</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">Reason: Slight ink smudge on loop</p>
+</div>
+</div>
+<div class="w-7 h-7 rounded-full bg-primary-container text-on-primary flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-sm font-bold">check</span>
+</div>
+</div>
+<!-- Card 2: Alternate Candidate -->
+<div class="p-3.5 rounded-2xl bg-surface-container-lowest border border-outline-variant/60 shadow-sm hover:border-primary-fixed-dim flex items-center justify-between transition-all cursor-pointer group">
+<div class="flex items-center space-x-3">
+<div class="w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center text-on-surface font-matrix-cell font-bold text-base group-hover:bg-secondary-container transition-colors">
+                215
+              </div>
+<div>
+<div class="flex items-center gap-2">
+<span class="font-label-md text-label-md font-bold text-on-surface">215 mm</span>
+<span class="px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm font-semibold">22%</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">Reason: Horizontal bar faint, possible 1 vs 7</p>
+</div>
+</div>
+<button class="px-3 py-1.5 rounded-lg border border-outline-variant bg-surface hover:bg-secondary-container text-on-surface font-label-sm text-label-sm font-semibold transition-all group-hover:border-primary-container group-hover:text-primary active:scale-95">
+              Select
+            </button>
+</div>
+</div>
+</div>
+<!-- 3. Manual Override Input -->
+<div class="p-4 rounded-2xl bg-surface-container-low border border-outline-variant/30 space-y-3">
+<label class="block font-label-md text-label-md font-bold text-on-surface" for="override-input">
+          Manual Value Override
+        </label>
+<div class="flex items-stretch gap-2.5">
+<div class="relative flex-1">
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl px-4 py-2.5 font-matrix-cell text-headline-md font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary-container focus:border-primary-container tracking-wider tabular-nums" id="override-input" inputmode="numeric" pattern="[0-9]*" type="text" value="275"/>
+<span class="absolute right-3.5 top-1/2 -translate-y-1/2 font-label-sm text-label-sm text-on-surface-variant pointer-events-none">
+              mm
+            </span>
+</div>
+<!-- Tactile Primary Action Button: Confirm & Verify -->
+<button class="tactile-btn text-on-primary px-4 py-2.5 rounded-xl font-label-md text-label-md font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap">
+<span class="material-symbols-outlined text-[18px]">check_circle</span>
+<span>Confirm &amp; Verify</span>
+</button>
+</div>
+</div>
+<!-- 4. Reviewer Notes & Audit Trail -->
+<div class="space-y-2.5 pt-1">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md font-bold text-on-surface">Audit Notes</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">KENYA FOREST SERVICE</span>
+</div>
+<!-- Chat-style speech bubble for past verification -->
+<div class="p-3.5 rounded-2xl bg-[#F0FDF4] border border-[#DCFCE7] space-y-1 relative">
+<div class="flex items-center justify-between text-secondary">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">shield_person</span>
+<span class="font-label-sm text-label-sm font-bold">J. Kariuki, Forest Officer</span>
+</div>
+<span class="font-label-sm text-[10px] text-on-secondary-container">10m ago</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface pl-5 border-l-2 border-primary-container/40 my-1">
+            "Digit smudged by rain; confirmed 27.5 cm DBH with plot supervisor"
+          </p>
+</div>
+<!-- Quick note input field -->
+<div class="relative flex items-center">
+<input class="w-full bg-surface-container-lowest border border-outline-variant/60 rounded-xl pl-3.5 pr-10 py-2.5 font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary-container focus:border-primary-container" placeholder="Add a note or annotation..." type="text"/>
+<button aria-label="Send Note" class="absolute right-2 p-1.5 rounded-lg text-primary hover:bg-secondary-container transition-colors active:scale-95">
+<span class="material-symbols-outlined text-[18px]">send</span>
+</button>
+</div>
+<!-- Resolution Switch Toggle -->
+<div class="pt-2 pb-1 flex items-center justify-between bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/30">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary-container">verified</span>
+<span class="font-label-md text-label-md text-on-surface font-semibold">Mark cell verified and resolved</span>
+</div>
+<!-- Toggle Active State (Checked Green) -->
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-container"></div>
+</label>
+</div>
+</div>
+</div>
+<!-- Modal Footer Controls -->
+<div class="px-5 py-3 border-t border-surface-container-high bg-surface-container-lowest flex items-center justify-between gap-3">
+<button class="flex-1 py-2.5 px-4 rounded-xl border border-outline-variant text-on-surface font-label-md text-label-md font-semibold hover:bg-surface-container transition-colors active:scale-95 text-center">
+        Flag for Rescan
+      </button>
+<button class="flex-1 py-2.5 px-4 rounded-xl bg-primary-container hover:bg-primary text-on-primary font-label-md text-label-md font-bold shadow-md transition-all active:scale-95 text-center flex items-center justify-center gap-1.5">
+<span class="material-symbols-outlined text-[18px]">save</span>
+<span>Save Changes</span>
+</button>
+</div>
+</section>
+</body></html>

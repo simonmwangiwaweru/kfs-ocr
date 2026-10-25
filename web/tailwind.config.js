@@ -1,50 +1,61 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
-  // Hover styles only compile inside @media (hover: hover), so touch devices never get a stuck hover.
+  darkMode: 'class',
   future: { hoverOnlyWhenSupported: true },
   theme: {
     extend: {
       colors: {
-        canvas: '#F8F8F5',
-        ink: '#0F172A',
-        // KEFRI forest green, from the original design brief (Deep Cypress -> Leaf Sage -> Mint).
-        brand: {
-          50: '#EEF5F0',
-          100: '#DCEBE1',
-          200: '#B9D6C4',
-          300: '#8FBBA0',
-          400: '#5F9A79',
-          500: '#3E7B5C',
-          600: '#2F6449',
-          700: '#1F4D37',
-          800: '#163D2B',
-          900: '#0E2C1F'
-        }
+        'surface': '#f8faf9',
+        'surface-dim': '#d8dad9',
+        'surface-bright': '#f8faf9',
+        'surface-container-lowest': '#ffffff',
+        'surface-container-low': '#f2f4f3',
+        'surface-container': '#eceeed',
+        'surface-container-high': '#e6e9e8',
+        'surface-container-highest': '#e1e3e2',
+        'on-surface': '#191c1c',
+        'on-surface-variant': '#3f4941',
+        'inverse-surface': '#2e3131',
+        'inverse-on-surface': '#eff1f0',
+        'outline': '#6f7a71',
+        'outline-variant': '#bec9bf',
+        'surface-tint': '#066c41',
+        'primary': '#006038',
+        'on-primary': '#ffffff',
+        'primary-container': '#1f7a4d',
+        'on-primary-container': '#aeffca',
+        'inverse-primary': '#82d8a3',
+        'secondary': '#3d6751',
+        'on-secondary': '#ffffff',
+        'secondary-container': '#bceacf',
+        'on-secondary-container': '#416b55',
+        'tertiary': '#804300',
+        'on-tertiary': '#ffffff',
+        'tertiary-container': '#a45800',
+        'on-tertiary-container': '#ffe9db',
+        'error': '#ba1a1a',
+        'on-error': '#ffffff',
+        'error-container': '#ffdad6',
+        'on-error-container': '#93000a',
+        'primary-fixed': '#9ef5be',
+        'primary-fixed-dim': '#82d8a3',
+        'secondary-fixed': '#bfedd2',
+        'secondary-fixed-dim': '#a3d1b6',
+        'tertiary-fixed': '#ffdcc3',
+        'tertiary-fixed-dim': '#ffb77d',
+        'background': '#f8faf9',
+        'on-background': '#191c1c'
       },
       fontFamily: {
-        // System fonts: ship optical sizing for free, and work offline in remote forest stations.
-        sans: [
-          'ui-sans-serif',
-          'system-ui',
-          '-apple-system',
-          'BlinkMacSystemFont',
-          '"Segoe UI"',
-          'Roboto',
-          '"Helvetica Neue"',
-          'Arial',
-          'sans-serif'
-        ],
-        mono: ['ui-monospace', '"SF Mono"', 'SFMono-Regular', 'Menlo', 'Consolas', '"Liberation Mono"', 'monospace']
+        sans: ['"Nunito Sans"', 'Nunito', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+        headline: ['"Nunito Sans"', 'Nunito', 'sans-serif'],
+        matrix: ['"JetBrains Mono"', 'monospace']
       },
       boxShadow: {
-        card: '0 1px 2px rgb(15 23 42 / 0.04), 0 0 0 1px rgb(15 23 42 / 0.03)',
-        pop: '0 12px 32px -8px rgb(15 23 42 / 0.28), 0 2px 6px rgb(15 23 42 / 0.08)'
-      },
-      transitionTimingFunction: {
-        out: 'cubic-bezier(0.23, 1, 0.32, 1)',
-        'in-out-strong': 'cubic-bezier(0.77, 0, 0.175, 1)',
-        drawer: 'cubic-bezier(0.32, 0.72, 0, 1)'
+        tactile: '0 6px 18px -8px rgba(19, 62, 43, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.95)',
+        sheet: '0 -12px 36px -4px rgba(19, 62, 43, 0.25), 0 -2px 10px rgba(0, 0, 0, 0.04)'
       }
     }
   },

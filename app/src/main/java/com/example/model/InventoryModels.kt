@@ -7,23 +7,15 @@ enum class SyncStatus {
 }
 
 enum class ScanMode {
-    SINGLE_PAGE,
+    FORM_MODE,
     BATCH_PAGES,
-    PENDING_QUEUE
+    GALLERY
 }
 
-data class BoundingBox(
-    val topRatio: Float,
-    val leftRatio: Float,
-    val bottomRatio: Float,
-    val rightRatio: Float
-)
-
-data class CellConfidence(
-    val confidence: Float, // 0.0 to 1.0
-    val isUncertain: Boolean, // flagged if < 0.85 or failed sanity rule
-    val rawOcrReading: String,
-    val boundingBox: BoundingBox? = null
+data class CandidateReading(
+    val value: String,
+    val probability: Float,
+    val reason: String = ""
 )
 
 data class ReviewerComment(
@@ -34,22 +26,39 @@ data class ReviewerComment(
     val isResolved: Boolean = false
 )
 
-data class CellData(
-    val value: String,
-    val confidence: CellConfidence,
-    val comments: List<ReviewerComment> = emptyList(),
-    val isManuallyEdited: Boolean = false,
-    val originalOcrValue: String = value
+data class MatrixCell(
+    val colIndex: Int,              // 1 to 19
+    val colKey: String,             // "C1" to "C19"
+    val dbhValue: String,           // Primary measurement in BLUE ink (DBH) e.g. "178"
+    val heightValue: String = "",   // Smaller number in RED ink on top (Height) e.g. "24.5"
+    val value: String = dbhValue,   // Backwards compatibility for existing views
+    val dbhConfidence: Float = 0.95f,
+    val heightConfidence: Float = 0.90f,
+    val confidence: Float = dbhConfidence,
+    val isUncertain: Boolean = dbhConfidence < 0.85f || (heightValue.isNotEmpty() && heightConfidence < 0.85f),
+    val isVerified: Boolean = false,
+    val visibilityIssue: String? = null,
+    val candidateReadings: List<CandidateReading> = emptyList(),
+    val comments: List<ReviewerComment> = emptyList()
 )
 
-data class InventoryRow(
+data class MatrixRow(
+    val rowNumber: Int,             // 1 to 10
+    val cells: List<MatrixCell>     // 19 cells per row (10 rows x 19 columns)
+)
+
+data class MetadataField(
+    val label: String,
+    val value: String
+)
+
+data class VisibilityAuditIssue(
     val rowNumber: Int,
-    val treeNumber: CellData,
-    val speciesCode: CellData,
-    val dbhCm: CellData,       // Diameter at Breast Height in cm
-    val heightM: CellData,     // Tree height in meters
-    val healthStatus: CellData, // e.g. "Good", "Fine", "Fair", "Poor"
-    val notes: CellData
+    val colIndex: Int,
+    val colKey: String,
+    val fieldType: String,          // "DBH (Blue)" or "Height (Red)"
+    val issueDescription: String,   // e.g. "Faint blue pencil stroke", "Fold crease across cell"
+    val detectedFragment: String? = null
 )
 
 data class ScannedDocument(
@@ -58,36 +67,32 @@ data class ScannedDocument(
     val plotCode: String,
     val forestStation: String,
     val observerName: String,
-    val scanDateMillis: Long,
+    val speciesTaxon: String = "Eucalyptus saligna",
+    val plantingYear: String = "1982",
+    val age: String = "44",
+    val scanDateMillis: Long = System.currentTimeMillis(),
     val imagePath: String? = null,
     val imageResName: String = "sample_field_form",
     val fileSizeBytes: Long = 1845200L,
-    val fileType: String = "JPEG Form Scan",
+    val fileType: String = "Form AGW-85-01 Scan",
     val syncStatus: SyncStatus = SyncStatus.SYNCED,
-    val rows: List<InventoryRow> = emptyList(),
-    val isVerified: Boolean = false
+    val rows: List<MatrixRow> = emptyList(),
+    val metadataFields: List<MetadataField> = emptyList(),
+    val isVerified: Boolean = false,
+    val visibilityIssues: List<VisibilityAuditIssue> = emptyList(),
+    val totalTreesStems: Int = 190
 ) {
-    val totalUncertainCells: Int
-        get() = rows.sumOf { row ->
-            var count = 0
-            if (row.treeNumber.confidence.isUncertain) count++
-            if (row.speciesCode.confidence.isUncertain) count++
-            if (row.dbhCm.confidence.isUncertain) count++
-            if (row.heightM.confidence.isUncertain) count++
-            if (row.healthStatus.confidence.isUncertain) count++
-            if (row.notes.confidence.isUncertain) count++
-            count
-        }
+    val totalCells: Int
+        get() = rows.size * 19
 
-    val totalComments: Int
-        get() = rows.sumOf { row ->
-            row.treeNumber.comments.size +
-            row.speciesCode.comments.size +
-            row.dbhCm.comments.size +
-            row.heightM.comments.size +
-            row.healthStatus.comments.size +
-            row.notes.comments.size
-        }
+    val lowConfidenceCellsCount: Int
+        get() = rows.sumOf { row -> row.cells.count { it.isUncertain && !it.isVerified } }
+
+    val verifiedCellsCount: Int
+        get() = (totalCells - lowConfidenceCellsCount).coerceAtLeast(0)
+
+    val hasUnclearNumbers: Boolean
+        get() = visibilityIssues.isNotEmpty() || lowConfidenceCellsCount > 0
 }
 
 data class BatchScanItem(

@@ -2,41 +2,56 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Emil Kowalski Design Engineering — Modern Crisp Light Theme Tokens
-val AppBackground = Color(0xFFF8FAFC)       // Slate-50: ultra-clean, minimal canvas
-val SurfaceCard = Color(0xFFFFFFFF)         // Pure crisp white card surface
-val SurfaceSubtle = Color(0xFFF1F5F9)       // Slate-100: soft pill backgrounds
-val SurfacePressed = Color(0xFFE2E8F0)      // Slate-200: active tap feedback
+// ====================================================================
+// Stitch Field Scanner Design System — Color Tokens & Palette
+// ====================================================================
 
-val HairlineBorder = Color(0xFFE2E8F0)      // Slate-200: razor-sharp 1px subtle divider
-val HairlineBorderSubtle = Color(0xFFEEF2F6)// Ultra-fine interior divider
-val FocusBorder = Color(0xFF0F172A)         // Deep slate focus ring
+// Canvas & Ambient Surfaces
+val AppBackground = Color(0xFFF3F5F4)          // Soft outdoor anti-glare canvas base
+val SurfaceCard = Color(0xFFFFFFFF)            // Pure elevated white card
+val SurfaceSubtle = Color(0xFFF2F4F3)          // Container low
+val SurfaceContainer = Color(0xFFECEEED)       // Container standard
+val SurfaceContainerHigh = Color(0xFFE6E9E8)   // Container high
+val SurfaceContainerHighest = Color(0xFFE1E3E2)// Notch / hardware dark simulation
+val SurfaceDark = Color(0xFF2E3131)            // Inverse surface / dark tactile
 
-val TextPrimary = Color(0xFF0F172A)         // Slate-900: high-contrast ink
-val TextSecondary = Color(0xFF475569)       // Slate-600: balanced readability
-val TextMuted = Color(0xFF94A3B8)           // Slate-400: secondary metadata
+// Hairlines & Dividers
+val HairlineBorder = Color(0xFFBEC9BF)         // Outline variant subtle 1px divider
+val HairlineBorderSubtle = Color(0x33BEC9BF)   // 20% opacity interior divider
+val FocusBorder = Color(0xFF1F7A4D)            // Primary container green focus ring
 
-// KEFRI Forest Brand Accents
-val BrandEmerald = Color(0xFF059669)        // Emerald-600: vibrant, natural, scientific
-val BrandEmeraldDark = Color(0xFF064E3B)    // Emerald-900: authoritative headings
-val BrandEmeraldLight = Color(0xFFECFDF5)   // Emerald-50: crisp badge wash
-val BrandEmeraldBorder = Color(0xFFA7F3D0)  // Emerald-200: subtle badge stroke
+// Typography Inks
+val TextPrimary = Color(0xFF191C1C)            // High-legibility on-surface slate
+val TextSecondary = Color(0xFF3F4941)          // Balanced secondary on-surface-variant
+val TextMuted = Color(0xFF6F7A71)              // Metadata / inactive outline
 
-// OCR Uncertainty & Verification System
-val FlagAmber = Color(0xFFD97706)           // Amber-600: distinct uncertainty warning
-val FlagAmberBg = Color(0xFFFFFBEB)         // Amber-50: soft warning cell background
-val FlagAmberBorder = Color(0xFFFDE68A)     // Amber-200: clear callout stroke
-val FlagAmberText = Color(0xFF92400E)       // Amber-800: accessible warning text
+// KEFRI / KFS Forest Brand Palette
+val BrandEmerald = Color(0xFF1F7A4D)           // Primary Container (#1F7A4D)
+val BrandEmeraldTop = Color(0xFF2D8F5E)        // Gradient top (#2D8F5E)
+val BrandEmeraldDark = Color(0xFF006038)       // Deep Canopy (#006038)
+val BrandEmeraldLight = Color(0xFFDDF1E6)      // Tinted Canopy / Halo ring (#DDF1E6)
+val BrandEmeraldBorder = Color(0xFF82D8A3)     // Primary fixed dim
+val SecondaryContainer = Color(0xFFBCEACF)     // Secondary Container
+val SecondaryFixed = Color(0xFFBFEDD2)         // Secondary Fixed
 
-val VerifiedGreen = Color(0xFF059669)       // Emerald-600
-val VerifiedGreenBg = Color(0xFFECFDF5)     // Emerald-50
-val VerifiedGreenBorder = Color(0xFFA7F3D0) // Emerald-200
-val VerifiedGreenText = Color(0xFF065F46)   // Emerald-800
+// OCR Confidence Flagging (<85% Amber)
+val FlagAmber = Color(0xFFD97706)              // Warm warning amber text
+val FlagAmberBg = Color(0xFFFEF3C7)            // Soft amber cell substrate
+val FlagAmberBorder = Color(0xFFFDE68A)        // Amber border
+val FlagAmberText = Color(0xFF92400E)          // Amber readable text
+val FlagAmberContainer = Color(0xFFA45800)     // Tertiary container
 
+// Validated State (≥85% Emerald)
+val VerifiedGreen = Color(0xFF059669)          // Validated check emerald
+val VerifiedGreenBg = Color(0xFFD1FAE5)        // Validated chip substrate
+val VerifiedGreenBorder = Color(0xFFA3D1B6)    // Validated border
+val VerifiedGreenText = Color(0xFF065F46)      // Validated text
+
+// Destructive Red
 val ErrorRed = Color(0xFFDC2626)
-val ErrorRedBg = Color(0xFFFEF2F2)
+val ErrorRedBg = Color(0xFFFEE2E2)
 
-// Theme compatibility aliases
+// Compatibility aliases
 val ForestPrimary = BrandEmerald
 val ForestPrimaryContainer = BrandEmeraldLight
 val MustardPrimary = BrandEmerald
@@ -46,7 +61,6 @@ val ParchmentCardBg = SurfaceSubtle
 val ParchmentCardBorder = HairlineBorder
 val OnParchmentSurface = TextPrimary
 val OutlineWarm = TextMuted
-val FlagAmberContainer = FlagAmberBg
 val FlagAmberOnContainer = FlagAmberText
 val VerifiedGreenContainer = VerifiedGreenBg
 val VerifiedGreenOnContainer = VerifiedGreenText
