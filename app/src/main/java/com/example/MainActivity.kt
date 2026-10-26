@@ -52,184 +52,51 @@ class MainActivity : ComponentActivity() {
 fun KfsInventoryApp(viewModel: InventoryViewModel = viewModel()) {
     val currentTab by viewModel.currentTab.collectAsState()
     val isOffline by viewModel.isOffline.collectAsState()
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
-
-    BackHandler(enabled = drawerState.isOpen || currentTab != 0) {
-        if (drawerState.isOpen) {
-            scope.launch { drawerState.close() }
-        } else {
-            viewModel.selectTab(0)
-        }
+    BackHandler(enabled = currentTab != 0) {
+        viewModel.selectTab(0)
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet(
-                drawerContainerColor = SurfaceCard,
-                modifier = Modifier.widthIn(max = 310.dp)
-            ) {
-                // Official KFS Header
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(BrandEmeraldDark)
-                        .padding(18.dp)
-                        .statusBarsPadding()
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(BrandEmerald),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Park, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
-                        }
-                        Column {
-                            Text("KENYA FOREST SERVICE", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Black)
-                            Text("Field Biometrics Division", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Surface(
-                        color = Color.White.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-                            Text("OFFICER: Forester J. Mwangi", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            Text("BADGE: KFS-BIO-4819 • Comp 14", color = Color.White.copy(alpha = 0.9f), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Text(
-                    text = "FIELD NAVIGATION",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextSecondary,
-                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp)
-                )
-
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.DocumentScanner, contentDescription = null, tint = if (currentTab == 0) BrandEmerald else TextSecondary) },
-                    label = { Text("Field Scanner (Optics Reticle)", fontSize = 13.sp) },
-                    selected = currentTab == 0,
-                    onClick = {
-                        viewModel.selectTab(0)
-                        scope.launch { drawerState.close() }
-                    },
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-                )
-
-
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.Folder, contentDescription = null, tint = if (currentTab == 2) BrandEmerald else TextSecondary) },
-                    label = { Text("Plot Tally Archive & Search", fontSize = 13.sp) },
-                    selected = currentTab == 2,
-                    onClick = {
-                        viewModel.selectTab(2)
-                        scope.launch { drawerState.close() }
-                    },
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-                )
-
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.Settings, contentDescription = null, tint = if (currentTab == 3) BrandEmerald else TextSecondary) },
-                    label = { Text("Station Parameters & Form Rules", fontSize = 13.sp) },
-                    selected = currentTab == 3,
-                    onClick = {
-                        viewModel.selectTab(3)
-                        scope.launch { drawerState.close() }
-                    },
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-                )
-
-                Divider(modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp), color = HairlineBorderSubtle)
-
-                Text(
-                    text = "FIELD TELEMETRY & SYNC",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextSecondary,
-                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp)
-                )
-
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.CloudSync, contentDescription = null, tint = BrandEmerald) },
-                    label = { Text("Sync with KFS Central Server", fontSize = 13.sp) },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        viewModel.syncAll()
-                    },
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-                )
-
-                NavigationDrawerItem(
-                    icon = { Icon(if (isOffline) Icons.Default.SignalCellularOff else Icons.Default.SignalCellularAlt, contentDescription = null, tint = if (isOffline) FlagAmberText else BrandEmerald) },
-                    label = { Text(if (isOffline) "Offline Mode (Active)" else "Cloud Sync (Active)", fontSize = 13.sp) },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        viewModel.toggleOffline()
-                    },
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-                )
-
-                Spacer(modifier = Modifier.weight(1f))
-
-                Surface(
-                    color = SurfaceSubtle,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Text("Form AGW-85-01 Standard Tally", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                        Text("Republic of Kenya • KEFRI Biometrics v2.4", fontSize = 10.sp, color = TextSecondary)
-                    }
-                }
-            }
-        }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppBackground)
     ) {
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(AppBackground)
+                .windowInsetsPadding(WindowInsets.statusBars)
         ) {
-            Column(
+            // Global TopAppBar
+            Surface(
+                color = SurfaceCard,
+                shadowElevation = 1.dp,
                 modifier = Modifier
-                    .fillMaxSize()
-                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .fillMaxWidth()
+                    .border(width = 0.5.dp, color = HairlineBorderSubtle)
             ) {
-                // Global TopAppBar
-                Surface(
-                    color = SurfaceCard,
-                    shadowElevation = 1.dp,
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(width = 0.5.dp, color = HairlineBorderSubtle)
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    // Official KFS Shield Crest (Replaces old unused hamburger menu)
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = BrandEmeraldLight,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, BrandEmerald.copy(alpha = 0.3f)),
+                        modifier = Modifier.size(38.dp)
                     ) {
-                        // The three lines: Opens the Official KFS Navigation Drawer
-                        IconButton(
-                            onClick = { scope.launch { drawerState.open() } },
-                            modifier = Modifier.size(38.dp)
-                        ) {
-                            Icon(Icons.Default.Menu, contentDescription = "Open Navigation Menu", tint = TextPrimary)
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.Park,
+                                contentDescription = "Kenya Forest Service Crest",
+                                tint = BrandEmerald,
+                                modifier = Modifier.size(22.dp)
+                            )
                         }
+                    }
 
                         // Center Wordmark + Sync LED Pill
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -387,5 +254,4 @@ fun KfsInventoryApp(viewModel: InventoryViewModel = viewModel()) {
                 }
             }
         }
-    }
 }

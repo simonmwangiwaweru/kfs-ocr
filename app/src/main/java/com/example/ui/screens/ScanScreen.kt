@@ -103,18 +103,12 @@ fun ScanScreen(
                             modifier = Modifier.size(18.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = "Form Mode",
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (scanMode == ScanMode.FORM_MODE) BrandEmerald else TextPrimary
-                    )
-                    Text(
-                        text = "Full Sheet",
-                        fontSize = 9.sp,
-                        fontFamily = FontFamily.Monospace,
-                        color = if (scanMode == ScanMode.FORM_MODE) BrandEmeraldDark else TextMuted
                     )
                 }
             }
@@ -133,7 +127,7 @@ fun ScanScreen(
                     }
             ) {
                 Column(
-                    modifier = Modifier.padding(vertical = 10.dp, horizontal = 6.dp),
+                    modifier = Modifier.padding(vertical = 12.dp, horizontal = 6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Box(
@@ -145,9 +139,8 @@ fun ScanScreen(
                     ) {
                         Icon(Icons.Outlined.Layers, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = "Batch Mode", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                    Text(text = "Multi-leaf", fontSize = 9.sp, fontFamily = FontFamily.Monospace, color = TextMuted)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(text = "Batch Mode", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
                 }
             }
 
@@ -164,7 +157,7 @@ fun ScanScreen(
                     }
             ) {
                 Column(
-                    modifier = Modifier.padding(vertical = 10.dp, horizontal = 6.dp),
+                    modifier = Modifier.padding(vertical = 12.dp, horizontal = 6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Box(
@@ -176,9 +169,8 @@ fun ScanScreen(
                     ) {
                         Icon(Icons.Outlined.PhotoLibrary, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = "Gallery", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                    Text(text = "Stored Media", fontSize = 9.sp, fontFamily = FontFamily.Monospace, color = TextMuted)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(text = "Gallery", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
                 }
             }
         }
@@ -427,15 +419,14 @@ fun ScanScreen(
                             Toast.makeText(context, "Loaded document file", Toast.LENGTH_SHORT).show()
                         }
                 ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(Icons.Outlined.UploadFile, contentDescription = null, tint = BrandEmerald, modifier = Modifier.size(18.dp))
-                            Text(text = "Browse Files", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                        }
-                        Text(text = "PNG, JPG, PDF", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = TextMuted, modifier = Modifier.padding(top = 2.dp))
+                        Icon(Icons.Outlined.UploadFile, contentDescription = null, tint = BrandEmerald, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(text = "Browse Files", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                     }
                 }
 
@@ -452,15 +443,14 @@ fun ScanScreen(
                             Toast.makeText(context, "Loaded AGW-85-01 Mt. Kenya East appraisal!", Toast.LENGTH_SHORT).show()
                         }
                 ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(Icons.Default.Eco, contentDescription = null, tint = BrandEmerald, modifier = Modifier.size(18.dp))
-                            Text(text = "Load Sample", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = BrandEmerald)
-                        }
-                        Text(text = "AGW-85-01 Demo", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = BrandEmeraldDark, modifier = Modifier.padding(top = 2.dp))
+                        Icon(Icons.Default.Eco, contentDescription = null, tint = BrandEmerald, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(text = "Load Sample", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = BrandEmerald)
                     }
                 }
             }

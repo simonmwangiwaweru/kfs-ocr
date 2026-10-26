@@ -112,19 +112,6 @@ fun ReviewScreen(
     }
 
     var previewMode by remember { mutableStateOf("dual") } // "dual", "dbh", "height", "photo"
-    var showOnlyFlagged by remember { mutableStateOf(false) }
-
-    val allCells = remember(currentDoc) {
-        currentDoc.rows.flatMap { row ->
-            row.cells.map { cell -> Pair(row.rowNumber, cell) }
-        }
-    }
-
-    val totalStems = allCells.size
-    val flaggedCells = remember(allCells) { allCells.filter { it.second.isUncertain && !it.second.isVerified } }
-    val verifiedCount = totalStems - flaggedCells.size
-
-    val displayedStems = if (showOnlyFlagged) flaggedCells else allCells
 
     Column(
         modifier = modifier
@@ -191,7 +178,7 @@ fun ReviewScreen(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     listOf(
-                        Pair("dual", "Dual (Both)"),
+                        Pair("dual", "Document Sheet"),
                         Pair("dbh", "DBH (Blue)"),
                         Pair("height", "Height (Red)"),
                         Pair("photo", "Photo")
@@ -353,147 +340,63 @@ fun ReviewScreen(
             }
         }
 
-        // STEM MEASUREMENTS LIST (DUAL BLUE DBH + RED HEIGHT)
-        Surface(
-            color = SurfaceCard,
-            shape = RoundedCornerShape(18.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, HairlineBorderSubtle),
-            shadowElevation = 2.dp,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(text = "Tree Stem Records", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                        Text(text = "Blue = DBH (cm)  •  Red = Height (m)", fontSize = 10.5.sp, color = TextSecondary)
+        // OFFICIAL DOCUMENT FORMAT VIEW
+        when (previewMode) {
+            "dual" -> {
+                // Table 1: Primary DBH (Blue numbers)
+                OfficialDocumentTableView(
+                    title = "Table 1: Diameter at Breast Height (DBH)",
+                    subtitle = "Extracted Blue Ink Entries • 10 Rows × 19 Columns",
+                    accentColor = Color(0xFF1D4ED8), // Deep Navy Blue
+                    bgColor = Color(0xFFEFF6FF),
+                    rows = currentDoc.rows,
+                    isHeightTable = false,
+                    onCellClick = { rowNum, colIdx, colKey, cell ->
+                        viewModel.selectCell(rowNum, colIdx, colKey, cell)
                     }
+                )
 
-                    FilterChip(
-                        selected = showOnlyFlagged,
-                        onClick = { showOnlyFlagged = !showOnlyFlagged },
-                        label = { Text(if (showOnlyFlagged) "All Stems" else "Unclear Only", fontSize = 11.sp) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = FlagAmberBg,
-                            selectedLabelColor = FlagAmberText
-                        )
-                    )
-                }
+                // EXACTLY TWO LINES OF BLANK SPACE
+                OfficialTwoLineBreakNotice()
 
-                Divider(color = HairlineBorderSubtle)
-
-                // Stem List Items
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    displayedStems.take(25).forEachIndexed { index, (rowNum, cell) ->
-                        val isLow = cell.isUncertain && !cell.isVerified
-
-                        Surface(
-                            color = if (isLow) FlagAmberBg.copy(alpha = 0.5f) else SurfaceSubtle,
-                            shape = RoundedCornerShape(10.dp),
-                            border = if (isLow) androidx.compose.foundation.BorderStroke(1.dp, FlagAmberBorder) else null,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.selectCell(rowNum, cell.colIndex, cell.colKey, cell)
-                                }
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 9.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text(
-                                        text = "#${index + 1}",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        fontFamily = FontFamily.Monospace,
-                                        color = TextMuted
-                                    )
-                                    Column {
-                                        Text(
-                                            text = "Stem Row $rowNum, ${cell.colKey}",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = TextPrimary
-                                        )
-                                        if (!cell.visibilityIssue.isNullOrBlank()) {
-                                            Text(
-                                                text = cell.visibilityIssue,
-                                                fontSize = 9.5.sp,
-                                                color = FlagAmberText,
-                                                fontWeight = FontWeight.Medium
-                                            )
-                                        }
-                                    }
-                                }
-
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    // Height (Red)
-                                    if (cell.heightValue.isNotBlank()) {
-                                        Surface(
-                                            color = Color(0xFFFEF2F2),
-                                            shape = RoundedCornerShape(6.dp),
-                                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFECACA))
-                                        ) {
-                                            Text(
-                                                text = "${cell.heightValue}m",
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                fontFamily = FontFamily.Monospace,
-                                                color = Color(0xFFDC2626),
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                            )
-                                        }
-                                    }
-
-                                    // DBH (Blue)
-                                    Surface(
-                                        color = Color(0xFFEFF6FF),
-                                        shape = RoundedCornerShape(6.dp),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBFDBFE))
-                                    ) {
-                                        Text(
-                                            text = "${cell.dbhValue} cm",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            fontFamily = FontFamily.Monospace,
-                                            color = Color(0xFF1D4ED8),
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                        )
-                                    }
-
-                                    Icon(
-                                        Icons.Outlined.Edit,
-                                        contentDescription = "Edit Stem",
-                                        tint = TextMuted,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                        }
+                // Table 2: Tree Height (Red numbers)
+                OfficialDocumentTableView(
+                    title = "Table 2: Tree Height (HT)",
+                    subtitle = "Extracted Red Ink Annotations • 10 Rows × 19 Columns",
+                    accentColor = Color(0xFFDC2626), // Crimson Red
+                    bgColor = Color(0xFFFEF2F2),
+                    rows = currentDoc.rows,
+                    isHeightTable = true,
+                    onCellClick = { rowNum, colIdx, colKey, cell ->
+                        viewModel.selectCell(rowNum, colIdx, colKey, cell)
                     }
-
-                    if (displayedStems.size > 25) {
-                        Text(
-                            text = "+ ${displayedStems.size - 25} additional stem tallies included in export",
-                            fontSize = 11.sp,
-                            color = TextMuted,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                        )
+                )
+            }
+            "dbh" -> {
+                OfficialDocumentTableView(
+                    title = "Table 1: Diameter at Breast Height (DBH)",
+                    subtitle = "Extracted Blue Ink Entries • 10 Rows × 19 Columns",
+                    accentColor = Color(0xFF1D4ED8),
+                    bgColor = Color(0xFFEFF6FF),
+                    rows = currentDoc.rows,
+                    isHeightTable = false,
+                    onCellClick = { rowNum, colIdx, colKey, cell ->
+                        viewModel.selectCell(rowNum, colIdx, colKey, cell)
                     }
-                }
+                )
+            }
+            "height" -> {
+                OfficialDocumentTableView(
+                    title = "Table 2: Tree Height (HT)",
+                    subtitle = "Extracted Red Ink Annotations • 10 Rows × 19 Columns",
+                    accentColor = Color(0xFFDC2626),
+                    bgColor = Color(0xFFFEF2F2),
+                    rows = currentDoc.rows,
+                    isHeightTable = true,
+                    onCellClick = { rowNum, colIdx, colKey, cell ->
+                        viewModel.selectCell(rowNum, colIdx, colKey, cell)
+                    }
+                )
             }
         }
 
@@ -594,3 +497,265 @@ fun ReviewScreen(
         )
     }
 }
+
+@Composable
+fun OfficialDocumentTableView(
+    title: String,
+    subtitle: String,
+    accentColor: Color,
+    bgColor: Color,
+    rows: List<com.example.model.MatrixRow>,
+    isHeightTable: Boolean,
+    onCellClick: (rowNum: Int, colIdx: Int, colKey: String, cell: MatrixCell) -> Unit
+) {
+    Surface(
+        color = SurfaceCard,
+        shape = RoundedCornerShape(16.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, HairlineBorderSubtle),
+        shadowElevation = 2.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            // Table Header Bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(accentColor)
+                    )
+                    Column {
+                        Text(text = title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Text(text = subtitle, fontSize = 10.sp, color = TextSecondary)
+                    }
+                }
+                Surface(
+                    color = bgColor,
+                    shape = RoundedCornerShape(6.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, accentColor.copy(alpha = 0.3f))
+                ) {
+                    Text(
+                        text = if (isHeightTable) "RED INK" else "BLUE INK",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        color = accentColor,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            // Horizontally Scrollable 10x19 Grid
+            val horizontalScrollState = rememberScrollState()
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, HairlineBorderSubtle, RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(8.dp))
+            ) {
+                // Fixed Left Sticky Header: "ROW" + Rows 1 to 10
+                Column(
+                    modifier = Modifier
+                        .width(44.dp)
+                        .background(SurfaceSubtle)
+                ) {
+                    // Corner Header
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(30.dp)
+                            .border(width = 0.5.dp, color = HairlineBorderSubtle),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "ROW",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            color = TextMuted
+                        )
+                    }
+
+                    // 10 Row labels
+                    for (rowIdx in 1..10) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(32.dp)
+                                .border(width = 0.5.dp, color = HairlineBorderSubtle),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "R$rowIdx",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                                color = TextPrimary
+                            )
+                        }
+                    }
+                }
+
+                // Scrollable 19 Columns
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .horizontalScroll(horizontalScrollState)
+                ) {
+                    // Column Header Row: Col 1 to Col 19
+                    Row {
+                        for (colIdx in 1..19) {
+                            Box(
+                                modifier = Modifier
+                                    .width(48.dp)
+                                    .height(30.dp)
+                                    .background(SurfaceSubtle)
+                                    .border(width = 0.5.dp, color = HairlineBorderSubtle),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "$colIdx",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = TextMuted
+                                )
+                            }
+                        }
+                    }
+
+                    // 10 Data Rows
+                    val rowMap = rows.associateBy { it.rowNumber }
+                    for (rowIdx in 1..10) {
+                        val rowData = rowMap[rowIdx]
+                        val cellMap = rowData?.cells?.associateBy { it.colIndex } ?: emptyMap()
+
+                        Row {
+                            for (colIdx in 1..19) {
+                                val cell = cellMap[colIdx]
+                                val rawVal = if (isHeightTable) cell?.heightValue ?: "" else cell?.dbhValue ?: ""
+                                val isFaintOrUnclear = cell != null && cell.isUncertain && !cell.isVerified
+                                val displayVal = when {
+                                    rawVal.isNotBlank() -> rawVal
+                                    isHeightTable -> "—"
+                                    else -> "—"
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .width(48.dp)
+                                        .height(32.dp)
+                                        .background(
+                                            if (isFaintOrUnclear) FlagAmberBg.copy(alpha = 0.5f)
+                                            else if (rawVal.isNotBlank()) bgColor.copy(alpha = 0.45f)
+                                            else Color.White
+                                        )
+                                        .border(
+                                            width = if (isFaintOrUnclear) 1.dp else 0.5.dp,
+                                            color = if (isFaintOrUnclear) FlagAmberBorder else HairlineBorderSubtle
+                                        )
+                                        .clickable {
+                                            if (cell != null) {
+                                                onCellClick(rowIdx, colIdx, cell.colKey, cell)
+                                            }
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = displayVal,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (rawVal.isNotBlank()) FontWeight.Bold else FontWeight.Normal,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = if (rawVal.isNotBlank()) accentColor else TextMuted
+                                    )
+
+                                    if (isFaintOrUnclear) {
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(2.dp)
+                                                .size(5.dp)
+                                                .clip(CircleShape)
+                                                .background(FlagAmber)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "← Scroll horizontally for Cols 1 - 19 • Tap any cell to inspect/edit",
+                    fontSize = 9.5.sp,
+                    color = TextMuted
+                )
+                Text(
+                    text = "10 × 19 Grid",
+                    fontSize = 9.5.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    color = TextSecondary
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun OfficialTwoLineBreakNotice() {
+    Surface(
+        color = SurfaceSubtle,
+        shape = RoundedCornerShape(10.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, HairlineBorderSubtle),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp, horizontal = 14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(Icons.Default.HorizontalRule, contentDescription = null, tint = TextMuted, modifier = Modifier.size(16.dp))
+                Text(
+                    text = "EXACTLY TWO LINES OF BLANK SPACE",
+                    fontSize = 10.5.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    color = TextSecondary,
+                    letterSpacing = 0.5.sp
+                )
+                Icon(Icons.Default.HorizontalRule, contentDescription = null, tint = TextMuted, modifier = Modifier.size(16.dp))
+            }
+            Text(
+                text = "Line 1: [Blank Space Break]  •  Line 2: [Blank Space Break]",
+                fontSize = 9.5.sp,
+                fontFamily = FontFamily.Monospace,
+                color = TextMuted,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+    }
+}
+
