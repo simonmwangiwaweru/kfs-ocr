@@ -537,200 +537,316 @@ export default function App() {
   const verifiedCells = Math.max(0, totalCells - lowConfCount);
 
   return (
-    <div className="bg-[#F3F5F4] text-[#191c1c] antialiased min-h-screen flex items-center justify-center p-0 md:p-6 select-none font-sans">
-      {/* Mobile Frame Container (iPhone 390x844 specification) */}
-      <main className="w-full max-w-[390px] h-[844px] bg-[#F3F5F4] flex flex-col relative overflow-hidden shadow-2xl md:rounded-[44px] border-[6px] border-[#e6e9e8]/60">
-        
-        {/* Top Hardware Ambient Status Bar */}
-        <header className="w-full bg-[#F3F5F4] pt-3 px-6 pb-1 flex justify-between items-center text-[#191c1c] z-30 shrink-0 select-none">
-          <span className="font-mono text-[13px] tracking-tight text-[#191c1c] font-semibold">09:41</span>
-          {/* Dynamic Island Pill */}
-          <div className="w-24 h-4 bg-[#2e3131] rounded-full flex items-center justify-end px-2 gap-1.5 opacity-90">
-            <div className="w-1.5 h-1.5 rounded-full bg-[#e1e3e2]"></div>
-            <div className="w-2 h-2 rounded-full bg-[#1f7a4d]"></div>
-          </div>
-          <div className="flex items-center gap-1.5 text-[#191c1c]">
-            <span className="material-symbols-outlined text-[15px]">signal_cellular_alt</span>
-            <span className="material-symbols-outlined text-[15px]">wifi</span>
-            <span className="material-symbols-outlined text-[17px] rotate-90">battery_full</span>
-          </div>
-        </header>
-
-        {/* Global TopAppBar */}
-        <section className="flex justify-between items-center w-full px-4 py-2 bg-[#f8faf9] text-[#006038] shadow-sm z-30 shrink-0">
-          <div className="w-10 h-10 rounded-xl bg-[#bfedd2]/40 border border-[#a3d1b6]/50 flex items-center justify-center text-[#1f7a4d] shadow-xs">
-            <span className="material-symbols-outlined text-2xl">park</span>
-          </div>
-          
-          <div className="flex flex-col items-center">
-            <div className="flex items-center gap-1">
-              <span className="font-headline text-[18px] font-extrabold text-[#191c1c] tracking-tight">KFS</span>
-              <span className="font-headline text-[18px] font-extrabold text-[#1f7a4d] tracking-tight">Scan</span>
+    <div className="bg-[#f0f3f1] text-[#191c1c] antialiased min-h-screen flex flex-col font-sans select-none">
+      {/* Global Top App Bar - Responsive Header */}
+      <header className="w-full bg-[#f8faf9] text-[#006038] shadow-xs z-30 shrink-0 border-b border-[#bec9bf]/20">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#bfedd2]/40 border border-[#a3d1b6]/50 flex items-center justify-center text-[#1f7a4d] shadow-xs">
+              <span className="material-symbols-outlined text-2xl">park</span>
             </div>
-            <span className="font-mono text-[10.5px] text-[#556057] font-semibold tracking-wide">
-              Form AGW-85-01
-            </span>
+            
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2">
+                <span className="font-headline text-[18px] font-extrabold text-[#191c1c] tracking-tight">KFS</span>
+                <span className="font-headline text-[18px] font-extrabold text-[#1f7a4d] tracking-tight">Scan</span>
+                <span className="hidden sm:inline-block px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#e6f4ea] text-[#137333] border border-[#ceead6]">
+                  FORM AGW-85-01
+                </span>
+              </div>
+              <span className="font-mono text-[10.5px] text-[#556057] font-semibold">
+                Kenya Forest Service • Field Appraisal & Inventory Digitization
+              </span>
+            </div>
           </div>
+
+          {/* Desktop Navigation Tabs (Hidden on small mobile screens, visible on md+) */}
+          <nav className="hidden md:flex items-center gap-1.5 bg-[#eceeed] p-1 rounded-xl">
+            <button 
+              onClick={() => setActiveTab('scan')}
+              className={`px-3.5 py-1.5 rounded-lg font-mono text-[12px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'scan' ? 'bg-white shadow-sm text-[#1f7a4d]' : 'text-[#3f4941] hover:text-[#191c1c]'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[17px]">photo_camera</span>
+              <span>Scanner</span>
+            </button>
+            <button 
+              onClick={() => {
+                if (documents.length > 0 && !activeDoc) setActiveDoc(documents[0]);
+                setActiveTab('review');
+              }}
+              className={`px-3.5 py-1.5 rounded-lg font-mono text-[12px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'review' ? 'bg-white shadow-sm text-[#1f7a4d]' : 'text-[#3f4941] hover:text-[#191c1c]'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[17px]">table_chart</span>
+              <span>Document Sheet</span>
+            </button>
+            <button 
+              onClick={() => setActiveTab('archive')}
+              className={`px-3.5 py-1.5 rounded-lg font-mono text-[12px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'archive' ? 'bg-white shadow-sm text-[#1f7a4d]' : 'text-[#3f4941] hover:text-[#191c1c]'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[17px]">folder</span>
+              <span>Archive ({documents.length})</span>
+            </button>
+            <button 
+              onClick={() => setActiveTab('settings')}
+              className={`px-3.5 py-1.5 rounded-lg font-mono text-[12px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'settings' ? 'bg-white shadow-sm text-[#1f7a4d]' : 'text-[#3f4941] hover:text-[#191c1c]'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[17px]">settings</span>
+              <span>Station Settings</span>
+            </button>
+          </nav>
 
           <button 
             onClick={() => setActiveTab('archive')}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-[#191c1c] hover:bg-[#e6e9e8] transition-colors active:scale-95 duration-150" 
+            className="w-10 h-10 rounded-full flex items-center justify-center text-[#191c1c] hover:bg-[#e6e9e8] transition-colors active:scale-95 duration-150 md:hidden" 
             type="button"
             title="Search Archive"
           >
             <span className="material-symbols-outlined text-2xl">search</span>
           </button>
-        </section>
+        </div>
+      </header>
 
+      {/* Main Responsive Body Container */}
+      <main className="w-full max-w-6xl mx-auto flex-1 flex flex-col relative px-3.5 sm:px-6 py-4">
         {/* TOAST MESSAGE */}
         {toastMessage && (
-          <div className="absolute top-16 left-4 right-4 z-50 bg-[#191c1c] text-white px-3.5 py-2.5 rounded-xl shadow-xl flex items-center gap-2 text-xs font-medium animate-in fade-in duration-200">
+          <div className="fixed top-16 left-4 right-4 max-w-md mx-auto z-50 bg-[#191c1c] text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2 text-xs font-medium animate-in fade-in duration-200">
             <span className="material-symbols-outlined text-[#82d8a3] text-[18px]">check_circle</span>
             <span className="truncate">{toastMessage}</span>
           </div>
         )}
 
         {/* ==================================================== */}
-        {/* VIEW 1: SCANNER SCREEN (From code__7__0f318414.html) */}
+        {/* VIEW 1: SCANNER SCREEN (Responsive Layout)           */}
         {/* ==================================================== */}
         {activeTab === 'scan' && (
-          <div className="flex-1 overflow-y-auto px-4 pt-3 pb-24 space-y-3.5 no-scrollbar">
-            {/* Mode Selector (Tactile Floating Tiles) */}
-            <section className="grid grid-cols-3 gap-2.5">
-              <button 
-                onClick={() => setActiveTab('scan')}
-                className="bg-white ring-1.5 ring-[#1f7a4d] border-2 border-[#1f7a4d]/20 rounded-[16px] p-3 flex flex-col items-center justify-center text-center tactile-card active:scale-95 transition-transform bg-[#bceacf]/15"
-              >
-                <div className="w-8 h-8 rounded-full bg-[#1f7a4d]/10 flex items-center justify-center mb-1.5 text-[#1f7a4d]">
-                  <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>table_chart</span>
-                </div>
-                <span className="font-mono text-[11.5px] font-bold text-[#1f7a4d]">Form Mode</span>
-              </button>
+          <div className="flex-1 w-full pb-24 md:pb-8 space-y-5">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Left Column: Viewfinder & Controls (lg:col-span-7) */}
+              <div className="lg:col-span-7 space-y-4">
+                {/* Mode Selector */}
+                <div className="grid grid-cols-3 gap-2.5">
+                  <button 
+                    onClick={() => setActiveTab('scan')}
+                    className="bg-white ring-1.5 ring-[#1f7a4d] border-2 border-[#1f7a4d]/20 rounded-2xl p-3 flex flex-col items-center justify-center text-center shadow-xs bg-[#bceacf]/15 transition-all"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-[#1f7a4d]/10 flex items-center justify-center mb-1 text-[#1f7a4d]">
+                      <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>table_chart</span>
+                    </div>
+                    <span className="font-mono text-[11.5px] font-bold text-[#1f7a4d]">Form Mode</span>
+                  </button>
 
-              <button 
-                onClick={() => setActiveTab('review')}
-                className="bg-white ring-1 ring-[#bec9bf]/30 rounded-[16px] p-3 flex flex-col items-center justify-center text-center tactile-card opacity-85 hover:opacity-100 active:scale-95 transition-all"
-              >
-                <div className="w-8 h-8 rounded-full bg-[#eceeed] flex items-center justify-center mb-1.5 text-[#3f4941]">
-                  <span className="material-symbols-outlined text-[20px]">layers</span>
-                </div>
-                <span className="font-mono text-[11.5px] font-bold text-[#3f4941]">Batch Mode</span>
-              </button>
+                  <button 
+                    onClick={() => {
+                      if (documents.length > 0 && !activeDoc) setActiveDoc(documents[0]);
+                      setActiveTab('review');
+                    }}
+                    className="bg-white ring-1 ring-[#bec9bf]/30 rounded-2xl p-3 flex flex-col items-center justify-center text-center shadow-xs hover:bg-[#f8faf9] transition-all cursor-pointer"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-[#eceeed] flex items-center justify-center mb-1 text-[#3f4941]">
+                      <span className="material-symbols-outlined text-[20px]">layers</span>
+                    </div>
+                    <span className="font-mono text-[11.5px] font-bold text-[#3f4941]">Batch Mode</span>
+                  </button>
 
-              <button 
-                onClick={() => setActiveTab('archive')}
-                className="bg-white ring-1 ring-[#bec9bf]/30 rounded-[16px] p-3 flex flex-col items-center justify-center text-center tactile-card opacity-85 hover:opacity-100 active:scale-95 transition-all"
-              >
-                <div className="w-8 h-8 rounded-full bg-[#eceeed] flex items-center justify-center mb-1.5 text-[#3f4941]">
-                  <span className="material-symbols-outlined text-[20px]">photo_library</span>
+                  <button 
+                    onClick={() => setActiveTab('archive')}
+                    className="bg-white ring-1 ring-[#bec9bf]/30 rounded-2xl p-3 flex flex-col items-center justify-center text-center shadow-xs hover:bg-[#f8faf9] transition-all cursor-pointer"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-[#eceeed] flex items-center justify-center mb-1 text-[#3f4941]">
+                      <span className="material-symbols-outlined text-[20px]">photo_library</span>
+                    </div>
+                    <span className="font-mono text-[11.5px] font-bold text-[#3f4941]">Gallery</span>
+                  </button>
                 </div>
-                <span className="font-mono text-[11.5px] font-bold text-[#3f4941]">Gallery</span>
-              </button>
-            </section>
 
-            {/* Central Scanner Viewfinder Card */}
-            <section className="relative bg-white rounded-[22px] p-2 tactile-card border border-[#bec9bf]/30 overflow-hidden">
-              <div className="relative w-full h-[270px] rounded-[18px] overflow-hidden bg-[#2e3131] flex items-center justify-center">
-                {activeDoc?.imageDataUrl ? (
-                  <img 
-                    src={activeDoc.imageDataUrl} 
-                    alt="Current Scanned Document" 
-                    className="absolute inset-0 w-full h-full object-cover filter contrast-105"
-                  />
-                ) : (
-                  <div className="absolute inset-0 bg-[#16291e] flex items-center justify-center">
-                    <img 
-                      src="/mustard_paper_texture.jpg" 
-                      alt="Paper texture" 
-                      className="absolute inset-0 w-full h-full object-cover opacity-60"
-                      onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
-                    />
+                {/* Central Optical Viewfinder Card */}
+                <div className="relative bg-[#0f172a] rounded-3xl p-2.5 shadow-xl border border-slate-700/60 overflow-hidden">
+                  <div className="relative w-full h-[270px] sm:h-[340px] rounded-2xl overflow-hidden bg-slate-950 flex items-center justify-center">
+                    {activeDoc?.imageDataUrl ? (
+                      <img 
+                        src={activeDoc.imageDataUrl} 
+                        alt="Current Scanned Document" 
+                        className="absolute inset-0 w-full h-full object-contain filter contrast-105"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center bg-slate-900/90">
+                        <img 
+                          src="/sample_field_form.jpg" 
+                          alt="Form AGW-85-01 Template" 
+                          className="w-full h-full object-cover opacity-45 filter contrast-125 brightness-95"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/80 pointer-events-none"></div>
+                      </div>
+                    )}
+
+                    {/* Framing & Targeting Corner Brackets */}
+                    <div className="absolute inset-3 border border-white/20 rounded-xl pointer-events-none"></div>
+                    <div className="absolute top-5 left-5 w-6 h-6 border-t-4 border-l-4 border-[#82d8a3] rounded-tl pointer-events-none shadow-sm"></div>
+                    <div className="absolute top-5 right-5 w-6 h-6 border-t-4 border-r-4 border-[#82d8a3] rounded-tr pointer-events-none shadow-sm"></div>
+                    <div className="absolute bottom-5 left-5 w-6 h-6 border-b-4 border-l-4 border-[#82d8a3] rounded-bl pointer-events-none shadow-sm"></div>
+                    <div className="absolute bottom-5 right-5 w-6 h-6 border-b-4 border-r-4 border-[#82d8a3] rounded-br pointer-events-none shadow-sm"></div>
+
+                    {/* Optical Crosshair */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="w-10 h-10 border border-[#82d8a3]/50 rounded-full flex items-center justify-center">
+                        <span className="w-2 h-2 bg-[#9ef5be] rounded-full shadow-lg"></span>
+                      </div>
+                    </div>
+
+                    {/* Laser Scan Beam */}
+                    <div className="laser-beam absolute left-4 right-4 h-[2px] bg-[#9ef5be] shadow-[0_0_12px_3px_rgba(130,216,163,0.9)] pointer-events-none z-10 flex items-center">
+                      <span className="absolute left-0 -top-1 w-2 h-2.5 bg-[#9ef5be] rounded-full shadow-[0_0_8px_#82d8a3]"></span>
+                      <span className="absolute right-0 -top-1 w-2 h-2.5 bg-[#9ef5be] rounded-full shadow-[0_0_8px_#82d8a3]"></span>
+                    </div>
+
+                    {/* Top Telemetry */}
+                    <div className="absolute top-3 left-4 right-4 flex justify-between items-center pointer-events-none">
+                      <span className="font-mono text-[10.5px] tracking-wider text-white bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-md border border-white/10 font-bold">
+                        FORM: AGW-85-01
+                      </span>
+                      <div className="flex items-center gap-1.5 bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-md border border-white/10 text-[#9ef5be] font-mono text-[10.5px] font-bold">
+                        <span className="w-2 h-2 rounded-full bg-[#9ef5be] animate-pulse"></span>
+                        <span>AUTO-FOCUS</span>
+                      </div>
+                    </div>
+
+                    {/* Bottom Guidance Chip */}
+                    <div className="absolute bottom-3 left-4 right-4 flex justify-center pointer-events-none">
+                      <div className="bg-slate-900/90 backdrop-blur-md border border-white/15 px-3.5 py-1.5 rounded-full flex items-center gap-2 shadow-lg">
+                        <span className="material-symbols-outlined text-[#82d8a3] text-[16px]">crop_free</span>
+                        <span className="font-mono text-[11px] text-[#eff1f0] font-semibold tracking-tight">
+                          {isProcessing ? processingStep : 'Align Stumpage Appraisal Form AGW-85-01 within frame'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                )}
-
-                {/* Semi-darkened Tactical Vignette Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60 pointer-events-none"></div>
-
-                {/* Outer Grey Corner Framing Brackets */}
-                <div className="absolute inset-3 border-2 border-white/20 rounded-xl pointer-events-none"></div>
-
-                {/* Bold Forest Green Inner Corner Targeting Brackets */}
-                <div className="absolute top-5 left-5 w-6 h-6 border-t-4 border-l-4 border-[#82d8a3] rounded-tl pointer-events-none shadow-sm"></div>
-                <div className="absolute top-5 right-5 w-6 h-6 border-t-4 border-r-4 border-[#82d8a3] rounded-tr pointer-events-none shadow-sm"></div>
-                <div className="absolute bottom-5 left-5 w-6 h-6 border-b-4 border-l-4 border-[#82d8a3] rounded-bl pointer-events-none shadow-sm"></div>
-                <div className="absolute bottom-5 right-5 w-6 h-6 border-b-4 border-r-4 border-[#82d8a3] rounded-br pointer-events-none shadow-sm"></div>
-
-                {/* Central Crosshair Optical Marker */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="w-9 h-9 border border-[#82d8a3]/40 rounded-full flex items-center justify-center">
-                    <span className="w-1.5 h-1.5 bg-[#9ef5be] rounded-full shadow-lg"></span>
-                  </div>
                 </div>
 
-                {/* Animated Laser Scan Beam */}
-                <div className="laser-beam absolute left-4 right-4 h-[2px] bg-[#9ef5be] shadow-[0_0_12px_3px_rgba(130,216,163,0.9)] pointer-events-none z-10 flex items-center">
-                  <span className="absolute left-0 -top-1 w-2 h-2.5 bg-[#9ef5be] rounded-full shadow-[0_0_8px_#82d8a3]"></span>
-                  <span className="absolute right-0 -top-1 w-2 h-2.5 bg-[#9ef5be] rounded-full shadow-[0_0_8px_#82d8a3]"></span>
-                </div>
-
-                {/* Form Header Telemetry Readout */}
-                <div className="absolute top-3 left-4 right-4 flex justify-between items-center pointer-events-none">
-                  <span className="font-mono text-[10px] tracking-wider text-white bg-black/60 backdrop-blur-md px-2 py-0.5 rounded border border-white/10">
-                    FORM: AGW-85-01
-                  </span>
-                  <div className="flex items-center gap-1 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded border border-white/10 text-[#9ef5be] font-mono text-[10px]">
-                    <span className="material-symbols-outlined text-[12px] text-[#9ef5be]" style={{ fontVariationSettings: "'FILL' 1" }}>lens</span>
-                    <span>AUTO-FOCUS</span>
-                  </div>
-                </div>
-
-                {/* Guidance Chip Overlay */}
-                <div className="absolute bottom-3 left-4 right-4 flex justify-center pointer-events-none">
-                  <div className="bg-[#2e3131]/85 backdrop-blur-md border border-white/15 px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg">
-                    <span className="material-symbols-outlined text-[#82d8a3] text-[16px]">crop_free</span>
-                    <span className="font-mono text-[10.5px] text-[#eff1f0] font-semibold tracking-tight">
-                      {isProcessing ? processingStep : 'Align Stumpage Appraisal Form AGW-85-01 within frame'}
+                {/* Primary Action Buttons */}
+                <div className="space-y-3">
+                  <button 
+                    onClick={() => cameraInputRef.current?.click()}
+                    disabled={isProcessing}
+                    className="w-full primary-btn-tactile text-white rounded-2xl py-3.5 px-6 flex items-center justify-center gap-3 active:scale-[0.98] transition-all cursor-pointer shadow-lg hover:brightness-105"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>photo_camera</span>
+                    </div>
+                    <span className="font-headline text-[16px] font-extrabold tracking-wider uppercase">
+                      {isProcessing ? 'Transcribing Document...' : 'Take Photo'}
                     </span>
-                  </div>
+                  </button>
+
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isProcessing}
+                    className="w-full bg-white border border-[#bec9bf]/60 rounded-2xl py-3 px-5 flex items-center justify-center gap-2.5 hover:bg-[#f8faf9] active:scale-[0.98] transition-all cursor-pointer shadow-xs"
+                  >
+                    <span className="material-symbols-outlined text-[20px] text-[#1f7a4d]">upload_file</span>
+                    <span className="font-headline text-[14px] font-bold text-[#191c1c]">Browse Document Files (JPG, PNG, PDF)</span>
+                  </button>
+
+                  <input ref={fileInputRef} type="file" accept="image/*,.pdf" onChange={handleFileUpload} className="hidden" />
+                  <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileUpload} className="hidden" />
                 </div>
               </div>
-            </section>
 
-            {/* Action Buttons Below Viewfinder */}
-            <section className="space-y-2.5">
-              <button 
-                onClick={() => cameraInputRef.current?.click()}
-                disabled={isProcessing}
-                className="w-full primary-btn-tactile text-white rounded-[14px] py-3.5 px-4 flex items-center justify-center gap-2.5 active:scale-[0.98] transition-all cursor-pointer shadow-lg"
-              >
-                <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>photo_camera</span>
+              {/* Right Column: Appraisal Spec Sheet & Biometrics (lg:col-span-5) */}
+              <div className="lg:col-span-5 space-y-4">
+                <div className="bg-white rounded-3xl p-5 shadow-sm border border-[#bec9bf]/40 space-y-4">
+                  <div className="flex items-center gap-2.5 pb-3 border-b border-[#bec9bf]/30">
+                    <div className="w-9 h-9 rounded-xl bg-[#e6f4ea] text-[#1f7a4d] flex items-center justify-center shadow-xs">
+                      <span className="material-symbols-outlined text-[22px]">forest</span>
+                    </div>
+                    <div>
+                      <h3 className="font-headline text-[15px] font-bold text-[#191c1c]">Field Appraisal Standards</h3>
+                      <p className="font-mono text-[11px] text-[#6f7a71]">Kenya Forest Service • Form AGW-85-01</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    <div className="p-3 bg-[#f8faf9] rounded-xl border border-[#bec9bf]/30 flex items-center justify-between">
+                      <span className="font-mono text-[11px] text-[#6f7a71]">Forest Station</span>
+                      <span className="font-headline text-[13px] font-bold text-[#191c1c]">Chuka Forest Station</span>
+                    </div>
+                    <div className="p-3 bg-[#f8faf9] rounded-xl border border-[#bec9bf]/30 flex items-center justify-between">
+                      <span className="font-mono text-[11px] text-[#6f7a71]">Compartment</span>
+                      <span className="font-headline text-[13px] font-bold text-[#191c1c]">Kiamuriuki 1(k)</span>
+                    </div>
+                    <div className="p-3 bg-[#f8faf9] rounded-xl border border-[#bec9bf]/30 flex items-center justify-between">
+                      <span className="font-mono text-[11px] text-[#6f7a71]">Target Species</span>
+                      <span className="font-headline text-[13px] font-bold text-[#191c1c]">E. saligna (62 yrs)</span>
+                    </div>
+                    <div className="p-3 bg-[#f8faf9] rounded-xl border border-[#bec9bf]/30 flex items-center justify-between">
+                      <span className="font-mono text-[11px] text-[#6f7a71]">Inventory Grid</span>
+                      <span className="font-headline text-[13px] font-bold text-[#191c1c]">10 Rows × 19 Cols (190 Stems)</span>
+                    </div>
+                  </div>
+
+                  {/* Dual Ink Rule Notice */}
+                  <div className="p-3.5 bg-[#eff6ff] rounded-2xl border border-[#bfdbfe] space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-[#1e40af]">
+                      <span className="material-symbols-outlined text-[18px]">verified</span>
+                      <span className="font-mono text-[11px] font-bold uppercase tracking-wider">Dual-Ink Extraction Standard</span>
+                    </div>
+                    <p className="font-mono text-[11px] text-[#1e3a8a] leading-relaxed">
+                      <strong>Blue Numbers:</strong> Extracted into Table 1 (DBH in cm).<br />
+                      <strong>Two Blank Lines:</strong> Enforced spacing separator.<br />
+                      <strong>Red Numbers:</strong> Extracted into Table 2 (Height in m).
+                    </p>
+                  </div>
+
+                  {/* Recent Scan Quick Link if exists */}
+                  {activeDoc && (
+                    <button 
+                      onClick={() => setActiveTab('review')}
+                      className="w-full py-2.5 px-4 rounded-xl bg-[#1f7a4d] text-white font-headline text-[13px] font-bold flex items-center justify-center gap-2 hover:bg-[#185e3a] transition-colors cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">description</span>
+                      <span>Open Transcribed Form ({activeDoc.rows.length} Rows)</span>
+                    </button>
+                  )}
                 </div>
-                <span className="font-headline text-[16px] font-extrabold tracking-wide uppercase">
-                  {isProcessing ? 'Transcribing...' : 'Take Photo'}
-                </span>
-              </button>
-
-              <button 
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isProcessing}
-                className="w-full bg-white border border-[#bec9bf]/40 rounded-[14px] py-3 px-4 flex items-center justify-center gap-2 tactile-card hover:bg-[#f2f4f3] active:scale-95 transition-all cursor-pointer shadow-xs"
-              >
-                <span className="material-symbols-outlined text-[20px] text-[#1f7a4d]">upload_file</span>
-                <span className="font-headline text-[14px] font-bold text-[#191c1c]">Browse Document Files (JPG, PNG, PDF)</span>
-              </button>
-
-              <input ref={fileInputRef} type="file" accept="image/*,.pdf" onChange={handleFileUpload} className="hidden" />
-              <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileUpload} className="hidden" />
-            </section>
+              </div>
+            </div>
           </div>
         )}
 
         {/* ==================================================== */}
         {/* VIEW 2: FORM AGW-85-01 OFFICIAL DOCUMENT REVIEW     */}
         {/* ==================================================== */}
+        {activeTab === 'review' && !activeDoc && (
+          <div className="flex-1 w-full max-w-2xl mx-auto py-16 px-4 flex flex-col items-center justify-center text-center space-y-4">
+            <div className="w-16 h-16 rounded-3xl bg-[#e6f4ea] text-[#1f7a4d] flex items-center justify-center shadow-sm">
+              <span className="material-symbols-outlined text-[36px]">table_chart</span>
+            </div>
+            <div className="space-y-1">
+              <h3 className="font-headline text-[18px] font-bold text-[#191c1c]">No Appraisal Document Active</h3>
+              <p className="font-mono text-[12px] text-[#6f7a71] max-w-md">
+                Use the Scanner to capture Form AGW-85-01 or choose a record from the Archive to view the dual-ink 10×19 matrix transcription.
+              </p>
+            </div>
+            <button 
+              onClick={() => setActiveTab('scan')}
+              className="primary-btn-tactile text-white font-headline text-[14px] font-bold px-6 py-2.5 rounded-xl shadow-md flex items-center gap-2 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[20px]">photo_camera</span>
+              <span>Open Scanner</span>
+            </button>
+          </div>
+        )}
+
         {activeTab === 'review' && activeDoc && (
-          <div className="flex-1 overflow-y-auto px-3.5 pb-24 space-y-3 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto pb-24 md:pb-8 space-y-4 custom-scrollbar">
             {/* Top Sub-Header: Title & Segmented View Toggle */}
             <div className="w-full bg-[#f8faf9] p-2 rounded-2xl border border-[#bec9bf]/30 flex flex-col gap-2 shadow-xs">
               <div className="flex items-center justify-between">
@@ -1581,13 +1697,13 @@ export default function App() {
         {/* ==================================================== */}
         {/* GLOBAL BOTTOM NAVIGATION DOCK                        */}
         {/* (Constructed directly from Stitch blueprint)         */}
-        {/* ==================================================== */}
-        <nav className="absolute bottom-2 left-4 right-4 z-40 bg-white rounded-full px-6 py-2 shadow-xl ring-1 ring-[#bec9bf]/30 flex justify-between items-center backdrop-blur-md">
-          {/* Tab 1: Archive */}
+        {/* GLOBAL BOTTOM NAVIGATION DOCK (Exact 1:1 match with preview) */}
+        <nav className="fixed md:hidden bottom-3 left-6 right-6 z-40 max-w-[340px] mx-auto bg-white rounded-full px-8 py-2 shadow-xl ring-1 ring-[#bec9bf]/30 flex justify-between items-center backdrop-blur-md">
+          {/* Tab 1: Archive (Left) */}
           <button 
             onClick={() => setActiveTab('archive')}
-            className={`flex flex-col items-center justify-center transition-colors active:scale-90 duration-200 w-16 py-1 ${
-              activeTab === 'archive' ? 'text-[#1f7a4d] font-bold' : 'text-[#3f4941]'
+            className={`flex flex-col items-center justify-center transition-colors active:scale-90 duration-200 py-1 ${
+              activeTab === 'archive' ? 'text-[#1f7a4d] font-bold' : 'text-[#6f7a71]'
             }`}
           >
             <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: activeTab === 'archive' ? "'FILL' 1" : undefined }}>
@@ -1603,30 +1719,25 @@ export default function App() {
               aria-label="Scan Trigger" 
               className="w-14 h-14 rounded-full primary-btn-tactile ring-4 ring-[#ddf1e6] flex items-center justify-center text-white active:scale-90 transition-transform duration-200 shadow-lg cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+              <span className="material-symbols-outlined text-[26px]" style={{ fontVariationSettings: "'FILL' 1" }}>
                 document_scanner
               </span>
             </button>
           </div>
 
-          {/* Tab 3: Settings */}
+          {/* Tab 3: Settings (Right) */}
           <button 
             onClick={() => setActiveTab('settings')}
-            className={`flex flex-col items-center justify-center transition-colors active:scale-90 duration-200 w-16 py-1 ${
-              activeTab === 'settings' ? 'text-[#1f7a4d] font-bold' : 'text-[#3f4941]'
+            className={`flex flex-col items-center justify-center transition-colors active:scale-90 duration-200 py-1 ${
+              activeTab === 'settings' ? 'text-[#1f7a4d] font-bold' : 'text-[#6f7a71]'
             }`}
           >
             <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: activeTab === 'settings' ? "'FILL' 1" : undefined }}>
-              vpn_key
+              settings
             </span>
             <span className="font-mono text-[10px] mt-0.5">Settings</span>
           </button>
         </nav>
-
-        {/* iPhone Tactile Hardware Home Bar Indicator */}
-        <div className="w-full flex justify-center pb-2 pt-1 absolute bottom-0 pointer-events-none z-50">
-          <div className="w-32 h-1 bg-[#191c1c]/20 rounded-full"></div>
-        </div>
       </main>
     </div>
   );
