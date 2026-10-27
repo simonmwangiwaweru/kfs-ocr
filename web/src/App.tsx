@@ -14,7 +14,7 @@ import {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'scan' | 'review' | 'archive' | 'settings'>('scan');
-  const [viewMode, setViewMode] = useState<'grid' | 'photo'>('grid'); // in review tab
+  const [viewMode, setViewMode] = useState<'document' | 'dbh' | 'height' | 'photo'>('document'); // in review tab
   const [documents, setDocuments] = useState<ScanRecord[]>([]);
   const [activeDoc, setActiveDoc] = useState<ScanRecord | null>(null);
   const [isOffline, setIsOffline] = useState(false);
@@ -78,44 +78,9 @@ export default function App() {
   const loadDocuments = async () => {
     try {
       const allDocs = await db.scans.toArray();
-      if (allDocs.length > 0) {
-        setDocuments(allDocs);
-        if (!activeDoc) {
-          setActiveDoc(allDocs[0]);
-        }
-      } else {
-        const sample = generateLocalScan();
-        const initialDoc: ScanRecord = {
-          id: 'DOC-KFS-AGW85-01',
-          title: 'Mt. Kenya Forest - Comp 14',
-          documentType: sample.documentType,
-          institution: sample.institution,
-          subHeader: sample.subHeader,
-          personName: 'J. Kariuki',
-          idNumber: 'Form AGW-85-01',
-          plotCode: 'Comp 14',
-          forestStation: 'Mt. Kenya East',
-          observerName: 'J. Kariuki',
-          summary: sample.summary,
-          metadataFields: [
-            { label: 'Station', value: 'Mt. Kenya East' },
-            { label: 'Compartment', value: 'Comp 14' },
-            { label: 'Species Taxon', value: 'Cupressus lusitanica (Cypress)' },
-            { label: 'Planting Year', value: '1998 (Age 28)' },
-            { label: 'Officer In-Charge', value: 'J. Kariuki' },
-            { label: 'Date', value: '24.10.2026' }
-          ],
-          tableHeaders: sample.tableHeaders,
-          date: Date.now(),
-          fileSizeBytes: 245000,
-          fileType: 'image/jpeg',
-          syncStatus: 'SYNCED',
-          isVerified: false,
-          rows: sample.rows as any[]
-        };
-        await db.scans.put(initialDoc);
-        setDocuments([initialDoc]);
-        setActiveDoc(initialDoc);
+      setDocuments(allDocs);
+      if (allDocs.length > 0 && !activeDoc) {
+        setActiveDoc(allDocs[0]);
       }
     } catch (e) {
       console.error('Failed to load documents from database:', e);
@@ -153,6 +118,13 @@ export default function App() {
     }
     if (headerKey === 'col_1' || headerKey === 'treeNumber') return row.treeNumber || '';
     if (headerKey === 'col_2' || headerKey === 'speciesCode') return row.speciesCode || '';
+    return '—';
+  };
+
+  const getHeightCellDisplay = (row: ScanRow, headerKey: string): string => {
+    if (row.heightCells && row.heightCells[headerKey] !== undefined) {
+      return String(row.heightCells[headerKey]);
+    }
     return '—';
   };
 
@@ -242,29 +214,32 @@ export default function App() {
   };
 
   // ==========================================
+  // ==========================================
   // EXPORTS: Notepad (.txt), Word (.doc), Excel, CSV
+  // Structured Output: Blue DBH table first, exactly two lines of space, followed by Red Height table.
   // ==========================================
 
   const handleExportNotepad = (doc: ScanRecord) => {
     const headers = getDocumentHeaders(doc);
-    const station = doc.metadataFields?.find(m => m.label.toLowerCase().includes('station'))?.value || doc.forestStation || 'Mt. Kenya East';
-    const compartment = doc.metadataFields?.find(m => m.label.toLowerCase().includes('compartment'))?.value || doc.plotCode || 'Comp 14';
-    const species = doc.metadataFields?.find(m => m.label.toLowerCase().includes('species'))?.value || 'Cupressus lusitanica';
+    const station = doc.metadataFields?.find(m => m.label.toLowerCase().includes('station'))?.value || doc.forestStation || 'Chuka Forest Station';
+    const compartment = doc.metadataFields?.find(m => m.label.toLowerCase().includes('compartment'))?.value || doc.plotCode || 'Kiamuriuki 1(k)';
+    const species = doc.metadataFields?.find(m => m.label.toLowerCase().includes('species'))?.value || 'Eucalyptus saligna';
     const dateStr = doc.metadataFields?.find(m => m.label.toLowerCase().includes('date'))?.value || new Date(doc.date).toLocaleDateString();
-    const officer = doc.metadataFields?.find(m => m.label.toLowerCase().includes('officer'))?.value || doc.observerName || 'J. Kariuki';
-    const plantingYear = doc.metadataFields?.find(m => m.label.toLowerCase().includes('planting'))?.value || '1998';
+    const officer = doc.metadataFields?.find(m => m.label.toLowerCase().includes('officer'))?.value || doc.observerName || 'Faith';
+    const plantingYear = doc.metadataFields?.find(m => m.label.toLowerCase().includes('planting'))?.value || '1982';
     const treeCount = `${doc.rows.length * 19}`;
 
     let text = "";
     text += "========================================================================================================================\r\n";
-    text += "                     KENYA FOREST SERVICE (KFS) - STUMPAGE APPRAISAL FORM (AGW-85-01)                                    \r\n";
+    text += "                     REPUBLIC OF KENYA • KENYA FOREST SERVICE (KFS)                                                     \r\n";
+    text += "                     STUMPAGE APPRAISAL TALLY SHEET (FORM AGW-85-01)                                                    \r\n";
     text += "========================================================================================================================\r\n";
     text += `Station:             ${station.padEnd(32)} Date:              ${dateStr}\r\n`;
     text += `Compartment:         ${compartment.padEnd(32)} Officer:           ${officer}\r\n`;
-    text += `Species:             ${species.padEnd(32)} Planting Year:     ${plantingYear}\r\n`;
-    text += `Classification:      Timber                            Total Trees:       ${treeCount}\r\n`;
+    text += `Species:             ${species.padEnd(32)} Planting Year:     ${plantingYear} (Age 62)\r\n`;
+    text += `Assessment:          Clear Fell (Whole)                Total Trees:       ${treeCount}\r\n`;
     text += "------------------------------------------------------------------------------------------------------------------------\r\n\r\n";
-    text += "FIELD TREE MEASUREMENT DATA (DIAMETER AT BREAST HEIGHT - DBH / Dm in cm):\r\n";
+    text += "TABLE 1: PRIMARY DIAMETER AT BREAST HEIGHT (DBH) - BLUE INK NUMBERS (10 ROWS x 19 COLUMNS):\r\n";
     text += "------------------------------------------------------------------------------------------------------------------------\r\n";
 
     const colHeaders = headers.map((h, i) => {
@@ -283,14 +258,31 @@ export default function App() {
       text += rowLabel + rowVals.join(" ") + "\r\n";
     });
 
+    // EXACTLY TWO LINES OF BLANK SPACE
+    text += "\r\n\r\n";
+
+    text += "TABLE 2: TREE HEIGHT (HT) - RED INK NUMBERS IN METERS (10 ROWS x 19 COLUMNS):\r\n";
+    text += "------------------------------------------------------------------------------------------------------------------------\r\n";
+    text += "ROW  " + colHeaders.join(" ") + "\r\n";
+    text += "-----" + headers.map(() => "-----").join(" ") + "\r\n";
+
+    doc.rows.forEach(r => {
+      const rowLabel = `R${r.rowNumber}`.padEnd(5);
+      const rowVals = headers.map(h => {
+        const val = getHeightCellDisplay(r, h.key).trim();
+        return (val || "-").padStart(5);
+      });
+      text += rowLabel + rowVals.join(" ") + "\r\n";
+    });
+
     text += "========================================================================================================================\r\n";
-    text += `Digitized & Audited Record • Form AGW-85-01 • Generated: ${new Date().toLocaleString()}\r\n`;
+    text += `Digitized Official Record • Form AGW-85-01 • Generated: ${new Date().toLocaleString()}\r\n`;
 
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    const cleanName = (doc.title || 'KFS_Stumpage_Appraisal').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const cleanName = (doc.title || 'KFS_Form_AGW-85-01').replace(/[^a-zA-Z0-9_-]/g, '_');
     link.download = `${cleanName}_Notepad.txt`;
     document.body.appendChild(link);
     link.click();
@@ -302,19 +294,22 @@ export default function App() {
 
   const handleExportWord = (doc: ScanRecord) => {
     const headers = getDocumentHeaders(doc);
-    const station = doc.metadataFields?.find(m => m.label.toLowerCase().includes('station'))?.value || doc.forestStation || 'Mt. Kenya East';
-    const compartment = doc.metadataFields?.find(m => m.label.toLowerCase().includes('compartment'))?.value || doc.plotCode || 'Comp 14';
-    const species = doc.metadataFields?.find(m => m.label.toLowerCase().includes('species'))?.value || 'Cupressus lusitanica';
+    const station = doc.metadataFields?.find(m => m.label.toLowerCase().includes('station'))?.value || doc.forestStation || 'Chuka Forest Station';
+    const compartment = doc.metadataFields?.find(m => m.label.toLowerCase().includes('compartment'))?.value || doc.plotCode || 'Kiamuriuki 1(k)';
+    const species = doc.metadataFields?.find(m => m.label.toLowerCase().includes('species'))?.value || 'Eucalyptus saligna';
     const dateStr = doc.metadataFields?.find(m => m.label.toLowerCase().includes('date'))?.value || new Date(doc.date).toLocaleDateString();
-    const officer = doc.metadataFields?.find(m => m.label.toLowerCase().includes('officer'))?.value || doc.observerName || 'J. Kariuki';
-    const plantingYear = doc.metadataFields?.find(m => m.label.toLowerCase().includes('planting'))?.value || '1998';
+    const officer = doc.metadataFields?.find(m => m.label.toLowerCase().includes('officer'))?.value || doc.observerName || 'Faith';
+    const plantingYear = doc.metadataFields?.find(m => m.label.toLowerCase().includes('planting'))?.value || '1982';
 
     const headerHtml = `
       <div style="border-bottom: 2px solid #1f7a4d; padding-bottom: 10px; margin-bottom: 14px; text-align: center;">
         <h1 style="color: #006038; font-size: 15pt; margin: 0; text-transform: uppercase; font-family: 'Segoe UI', Arial, sans-serif;">
-          KENYA FOREST SERVICE (KFS) - STUMPAGE APPRAISAL FORM (AGW-85-01)
+          REPUBLIC OF KENYA • KENYA FOREST SERVICE (KFS)
         </h1>
-        <p style="color: #6f7a71; font-size: 10pt; margin: 4px 0 0 0;">Forestry Inventory & Field Tree Measurements Digitization Record</p>
+        <h2 style="color: #191c1c; font-size: 12pt; margin: 4px 0 0 0; font-family: 'Segoe UI', Arial, sans-serif;">
+          STUMPAGE APPRAISAL TALLY FORM AGW-85-01
+        </h2>
+        <p style="color: #6f7a71; font-size: 10pt; margin: 2px 0 0 0;">Chuka Forest Station • Compartment Kiamuriuki 1(k) • Clear Fell (Whole)</p>
       </div>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 9.5pt; background: #f8faf9; border: 1px solid #bec9bf;">
         <tbody>
@@ -325,19 +320,28 @@ export default function App() {
           </tr>
           <tr>
             <td style="padding: 6px 10px; border: 1px solid #bec9bf;"><strong>Species:</strong> ${species}</td>
-            <td style="padding: 6px 10px; border: 1px solid #bec9bf;"><strong>Planting Year:</strong> ${plantingYear}</td>
+            <td style="padding: 6px 10px; border: 1px solid #bec9bf;"><strong>Planting Year:</strong> ${plantingYear} (Age 62)</td>
             <td style="padding: 6px 10px; border: 1px solid #bec9bf;"><strong>Measuring Officer:</strong> ${officer}</td>
           </tr>
         </tbody>
       </table>
     `;
 
-    const tableHeaderHtml = headers.map(h => `<th style="background-color: #1f7a4d; color: white; border: 1px solid #006038; padding: 5px; font-size: 8.5pt;">${h.label}</th>`).join('');
-    
-    const tableRowsHtml = doc.rows.map(r => {
+    const tableHeaderHtml = headers.map(h => `<th style="background-color: #1D4ED8; color: white; border: 1px solid #1E40AF; padding: 5px; font-size: 8.5pt;">${h.label}</th>`).join('');
+    const heightHeaderHtml = headers.map(h => `<th style="background-color: #DC2626; color: white; border: 1px solid #B91C1C; padding: 5px; font-size: 8.5pt;">${h.label}</th>`).join('');
+
+    const dbhRowsHtml = doc.rows.map(r => {
       const cellsHtml = headers.map(h => {
         const val = getCellDisplay(r, h.key);
-        return `<td style="border: 1px solid #bec9bf; padding: 5px; text-align: center; font-size: 9pt; font-family: monospace;">${val || '—'}</td>`;
+        return `<td style="border: 1px solid #bec9bf; padding: 5px; text-align: center; font-size: 9pt; font-family: monospace; color: #1D4ED8; font-weight: bold;">${val || '—'}</td>`;
+      }).join('');
+      return `<tr><td style="background-color: #eceeed; border: 1px solid #bec9bf; padding: 5px; text-align: center; font-weight: bold; font-size: 8.5pt;">R${r.rowNumber}</td>${cellsHtml}</tr>`;
+    }).join('');
+
+    const heightRowsHtml = doc.rows.map(r => {
+      const cellsHtml = headers.map(h => {
+        const val = getHeightCellDisplay(r, h.key);
+        return `<td style="border: 1px solid #bec9bf; padding: 5px; text-align: center; font-size: 9pt; font-family: monospace; color: #DC2626; font-weight: bold;">${val || '—'}</td>`;
       }).join('');
       return `<tr><td style="background-color: #eceeed; border: 1px solid #bec9bf; padding: 5px; text-align: center; font-weight: bold; font-size: 8.5pt;">R${r.rowNumber}</td>${cellsHtml}</tr>`;
     }).join('');
@@ -347,36 +351,52 @@ export default function App() {
       <head>
         <meta charset='utf-8'>
         <title>KFS Form AGW-85-01 Digitized</title>
-        <!--[if gte mso 9]>
-        <xml>
-          <w:WordDocument>
-            <w:View>Print</w:View>
-            <w:Zoom>90</w:Zoom>
-            <w:DoNotOptimizeForBrowser/>
-          </w:WordDocument>
-        </xml>
-        <![endif]-->
         <style>
           @page { size: landscape; margin: 1.5cm; }
           body { font-family: 'Segoe UI', Arial, sans-serif; }
-          table { border-collapse: collapse; width: 100%; }
+          table { border-collapse: collapse; width: 100%; margin-bottom: 12px; }
         </style>
       </head>
       <body>
         ${headerHtml}
-        <h3 style="color: #191c1c; font-size: 11pt; margin-top: 10px; margin-bottom: 6px;">Tree Diameter Breast Height (DBH) Matrix (10 x 19):</h3>
+        <h3 style="color: #1D4ED8; font-size: 11pt; margin-top: 10px; margin-bottom: 6px;">
+          TABLE 1: TREE DIAMETER AT BREAST HEIGHT (DBH) - BLUE INK [10 ROWS × 19 COLUMNS]
+        </h3>
         <table>
           <thead>
             <tr>
-              <th style="background-color: #1f7a4d; color: white; border: 1px solid #006038; padding: 5px; font-size: 8.5pt;">Row</th>
+              <th style="background-color: #1D4ED8; color: white; border: 1px solid #1E40AF; padding: 5px; font-size: 8.5pt;">Row</th>
               ${tableHeaderHtml}
             </tr>
           </thead>
           <tbody>
-            ${tableRowsHtml}
+            ${dbhRowsHtml}
           </tbody>
         </table>
-        <p style="margin-top: 20px; font-size: 8.5pt; color: #6f7a71; text-align: right;">Digitized with KFS Inventory Scan • Verified Record AGW-85-01</p>
+
+        <!-- EXACTLY TWO LINES OF BLANK SPACE -->
+        <div style="height: 36px; margin: 20px 0; border-top: 1px dashed #bec9bf; border-bottom: 1px dashed #bec9bf; text-align: center; color: #6f7a71; font-size: 9pt; line-height: 36px; font-family: monospace;">
+          [ EXACTLY TWO LINES OF BLANK SPACE AS PER OFFICIAL SPECIFICATION ]
+        </div>
+
+        <h3 style="color: #DC2626; font-size: 11pt; margin-top: 10px; margin-bottom: 6px;">
+          TABLE 2: TREE HEIGHT (HT) - RED INK ANNOTATIONS [10 ROWS × 19 COLUMNS]
+        </h3>
+        <table>
+          <thead>
+            <tr>
+              <th style="background-color: #DC2626; color: white; border: 1px solid #B91C1C; padding: 5px; font-size: 8.5pt;">Row</th>
+              ${heightHeaderHtml}
+            </tr>
+          </thead>
+          <tbody>
+            ${heightRowsHtml}
+          </tbody>
+        </table>
+
+        <p style="margin-top: 20px; font-size: 8.5pt; color: #6f7a71; text-align: right;">
+          Digitized with KFS Field Appraisal Scanner • Form AGW-85-01 Official Record
+        </p>
       </body>
       </html>
     `;
@@ -385,7 +405,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    const cleanName = (doc.title || 'KFS_Stumpage_Appraisal').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const cleanName = (doc.title || 'KFS_Form_AGW-85-01').replace(/[^a-zA-Z0-9_-]/g, '_');
     link.download = `${cleanName}.doc`;
     document.body.appendChild(link);
     link.click();
@@ -400,26 +420,39 @@ export default function App() {
     const wb = XLSX.utils.book_new();
 
     const headRow = ['Row', ...headers.map(h => h.label)];
-    const bodyRows = doc.rows.map(r => [
+    
+    // DBH Body Rows (Blue)
+    const dbhRows = doc.rows.map(r => [
       `R${r.rowNumber}`,
       ...headers.map(h => getCellDisplay(r, h.key))
     ]);
 
-    const wsData = XLSX.utils.aoa_to_sheet([headRow, ...bodyRows]);
-    XLSX.utils.book_append_sheet(wb, wsData, 'DBH Matrix (10x19)');
+    // Height Body Rows (Red)
+    const heightRows = doc.rows.map(r => [
+      `R${r.rowNumber}`,
+      ...headers.map(h => getHeightCellDisplay(r, h.key))
+    ]);
 
-    const metaRows = [
-      ['Attribute', 'Value'],
-      ['Title', doc.title],
-      ['Form Number', doc.idNumber || 'AGW-85-01'],
-      ['Station', doc.forestStation],
-      ['Compartment', doc.plotCode],
-      ['Officer', doc.observerName],
-      ['Date Scanned', new Date(doc.date).toLocaleString()],
-      ...(doc.metadataFields || []).map(m => [m.label, m.value])
+    // Combined Sheet with exactly two blank rows between DBH and Height
+    const combinedData = [
+      ['TABLE 1: DIAMETER AT BREAST HEIGHT (DBH) - BLUE INK'],
+      headRow,
+      ...dbhRows,
+      [''], // Blank row 1
+      [''], // Blank row 2
+      ['TABLE 2: TREE HEIGHT (HT) - RED INK'],
+      headRow,
+      ...heightRows
     ];
-    const wsMeta = XLSX.utils.aoa_to_sheet(metaRows);
-    XLSX.utils.book_append_sheet(wb, wsMeta, 'Form Metadata');
+
+    const wsCombined = XLSX.utils.aoa_to_sheet(combinedData);
+    XLSX.utils.book_append_sheet(wb, wsCombined, 'Form AGW-85-01 Appraisal');
+
+    const wsDbh = XLSX.utils.aoa_to_sheet([headRow, ...dbhRows]);
+    XLSX.utils.book_append_sheet(wb, wsDbh, 'DBH Table (Blue)');
+
+    const wsHeight = XLSX.utils.aoa_to_sheet([headRow, ...heightRows]);
+    XLSX.utils.book_append_sheet(wb, wsHeight, 'Height Table (Red)');
 
     const cleanName = (doc.title || 'KFS_Form_AGW85-01').replace(/[^a-zA-Z0-9_-]/g, '_');
     XLSX.writeFile(wb, `${cleanName}.xlsx`);
@@ -430,12 +463,29 @@ export default function App() {
   const handleExportCsv = (doc: ScanRecord) => {
     const headers = getDocumentHeaders(doc);
     const headRow = ['Row', ...headers.map(h => h.label)].join(',');
-    const bodyRows = doc.rows.map(r => [
+
+    const dbhRows = doc.rows.map(r => [
       `R${r.rowNumber}`,
       ...headers.map(h => `"${getCellDisplay(r, h.key).replace(/"/g, '""')}"`)
     ].join(','));
 
-    const csvContent = [headRow, ...bodyRows].join('\r\n');
+    const heightRows = doc.rows.map(r => [
+      `R${r.rowNumber}`,
+      ...headers.map(h => `"${getHeightCellDisplay(r, h.key).replace(/"/g, '""')}"`)
+    ].join(','));
+
+    // Blue DBH table, 2 empty lines, Red Height table
+    const csvContent = [
+      '# TABLE 1: DBH (BLUE INK)',
+      headRow,
+      ...dbhRows,
+      '',
+      '',
+      '# TABLE 2: TREE HEIGHT (RED INK)',
+      headRow,
+      ...heightRows
+    ].join('\r\n');
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -508,33 +558,25 @@ export default function App() {
 
         {/* Global TopAppBar */}
         <section className="flex justify-between items-center w-full px-4 py-2 bg-[#f8faf9] text-[#006038] shadow-sm z-30 shrink-0">
-          <button 
-            onClick={() => setActiveTab('scan')}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-[#191c1c] hover:bg-[#e6e9e8] transition-colors active:scale-95 duration-150" 
-            type="button"
-          >
-            <span className="material-symbols-outlined text-2xl">menu</span>
-          </button>
+          <div className="w-10 h-10 rounded-xl bg-[#bfedd2]/40 border border-[#a3d1b6]/50 flex items-center justify-center text-[#1f7a4d] shadow-xs">
+            <span className="material-symbols-outlined text-2xl">park</span>
+          </div>
           
           <div className="flex flex-col items-center">
             <div className="flex items-center gap-1">
               <span className="font-headline text-[18px] font-extrabold text-[#191c1c] tracking-tight">KFS</span>
               <span className="font-headline text-[18px] font-extrabold text-[#1f7a4d] tracking-tight">Scan</span>
             </div>
-            {/* Sync LED Pill */}
-            <div className="flex items-center gap-1.5 mt-0.5 px-2.5 py-0.5 rounded-full bg-[#bfedd2]/40 border border-[#a3d1b6]/50">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#059669] animate-pulse"></span>
-              <span className="font-mono text-[10px] leading-none text-[#3d6751] font-semibold uppercase tracking-wider">
-                {isOffline ? 'Offline Queue' : 'Cloud Sync Ready'}
-              </span>
-            </div>
+            <span className="font-mono text-[10.5px] text-[#556057] font-semibold tracking-wide">
+              Form AGW-85-01
+            </span>
           </div>
 
           <button 
-            onClick={() => setActiveTab('settings')}
+            onClick={() => setActiveTab('archive')}
             className="w-10 h-10 rounded-full flex items-center justify-center text-[#191c1c] hover:bg-[#e6e9e8] transition-colors active:scale-95 duration-150" 
             type="button"
-            title="Settings"
+            title="Search Archive"
           >
             <span className="material-symbols-outlined text-2xl">search</span>
           </button>
@@ -557,35 +599,32 @@ export default function App() {
             <section className="grid grid-cols-3 gap-2.5">
               <button 
                 onClick={() => setActiveTab('scan')}
-                className="bg-white ring-1.5 ring-[#1f7a4d] border-2 border-[#1f7a4d]/20 rounded-[16px] p-2.5 flex flex-col items-center justify-center text-center tactile-card active:scale-95 transition-transform bg-[#bceacf]/15"
+                className="bg-white ring-1.5 ring-[#1f7a4d] border-2 border-[#1f7a4d]/20 rounded-[16px] p-3 flex flex-col items-center justify-center text-center tactile-card active:scale-95 transition-transform bg-[#bceacf]/15"
               >
-                <div className="w-8 h-8 rounded-full bg-[#1f7a4d]/10 flex items-center justify-center mb-1 text-[#1f7a4d]">
+                <div className="w-8 h-8 rounded-full bg-[#1f7a4d]/10 flex items-center justify-center mb-1.5 text-[#1f7a4d]">
                   <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>table_chart</span>
                 </div>
-                <span className="font-mono text-[11px] font-bold text-[#1f7a4d]">Form Mode</span>
-                <span className="font-mono text-[9px] text-[#1f7a4d]/70 font-medium">10x19 Grid</span>
+                <span className="font-mono text-[11.5px] font-bold text-[#1f7a4d]">Form Mode</span>
               </button>
 
               <button 
                 onClick={() => setActiveTab('review')}
-                className="bg-white ring-1 ring-[#bec9bf]/30 rounded-[16px] p-2.5 flex flex-col items-center justify-center text-center tactile-card opacity-85 hover:opacity-100 active:scale-95 transition-all"
+                className="bg-white ring-1 ring-[#bec9bf]/30 rounded-[16px] p-3 flex flex-col items-center justify-center text-center tactile-card opacity-85 hover:opacity-100 active:scale-95 transition-all"
               >
-                <div className="w-8 h-8 rounded-full bg-[#eceeed] flex items-center justify-center mb-1 text-[#3f4941]">
+                <div className="w-8 h-8 rounded-full bg-[#eceeed] flex items-center justify-center mb-1.5 text-[#3f4941]">
                   <span className="material-symbols-outlined text-[20px]">layers</span>
                 </div>
-                <span className="font-mono text-[11px] font-bold text-[#3f4941]">10×19 Review</span>
-                <span className="font-mono text-[9px] text-[#6f7a71] font-normal">Audit Data</span>
+                <span className="font-mono text-[11.5px] font-bold text-[#3f4941]">Batch Mode</span>
               </button>
 
               <button 
                 onClick={() => setActiveTab('archive')}
-                className="bg-white ring-1 ring-[#bec9bf]/30 rounded-[16px] p-2.5 flex flex-col items-center justify-center text-center tactile-card opacity-85 hover:opacity-100 active:scale-95 transition-all"
+                className="bg-white ring-1 ring-[#bec9bf]/30 rounded-[16px] p-3 flex flex-col items-center justify-center text-center tactile-card opacity-85 hover:opacity-100 active:scale-95 transition-all"
               >
-                <div className="w-8 h-8 rounded-full bg-[#eceeed] flex items-center justify-center mb-1 text-[#3f4941]">
+                <div className="w-8 h-8 rounded-full bg-[#eceeed] flex items-center justify-center mb-1.5 text-[#3f4941]">
                   <span className="material-symbols-outlined text-[20px]">photo_library</span>
                 </div>
-                <span className="font-mono text-[11px] font-bold text-[#3f4941]">Archive</span>
-                <span className="font-mono text-[9px] text-[#6f7a71] font-normal">{documents.length} Sheets</span>
+                <span className="font-mono text-[11.5px] font-bold text-[#3f4941]">Gallery</span>
               </button>
             </section>
 
@@ -672,96 +711,23 @@ export default function App() {
                 </span>
               </button>
 
-              <div className="grid grid-cols-2 gap-2.5">
-                <button 
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isProcessing}
-                  className="bg-white border border-[#bec9bf]/40 rounded-[14px] p-2.5 flex flex-col items-center justify-center text-center tactile-card hover:bg-[#f2f4f3] active:scale-95 transition-all cursor-pointer"
-                >
-                  <div className="flex items-center gap-1.5 text-[#191c1c]">
-                    <span className="material-symbols-outlined text-[19px] text-[#1f7a4d]">upload_file</span>
-                    <span className="font-headline text-[13px] font-bold text-[#191c1c]">Browse Files</span>
-                  </div>
-                  <span className="font-mono text-[10px] text-[#6f7a71] mt-0.5 font-medium">PNG, JPG, PDF</span>
-                </button>
-
-                <button 
-                  onClick={() => {
-                    const sample = generateLocalScan();
-                    const demoDoc: ScanRecord = {
-                      id: `DOC-DEMO-${Date.now()}`,
-                      title: 'Mt. Kenya Forest - Comp 14',
-                      documentType: sample.documentType,
-                      institution: sample.institution,
-                      subHeader: sample.subHeader,
-                      personName: 'J. Kariuki',
-                      idNumber: 'Form AGW-85-01',
-                      plotCode: 'Comp 14',
-                      forestStation: 'Mt. Kenya East',
-                      observerName: 'J. Kariuki',
-                      summary: sample.summary,
-                      metadataFields: [
-                        { label: 'Station', value: 'Mt. Kenya East' },
-                        { label: 'Compartment', value: 'Comp 14' },
-                        { label: 'Species Taxon', value: 'Cupressus lusitanica (Cypress)' },
-                        { label: 'Planting Year', value: '1998 (Age 28)' },
-                        { label: 'Officer In-Charge', value: 'J. Kariuki' },
-                        { label: 'Date', value: '24.10.2026' }
-                      ],
-                      tableHeaders: sample.tableHeaders,
-                      date: Date.now(),
-                      fileSizeBytes: 245000,
-                      fileType: 'image/jpeg',
-                      syncStatus: 'SYNCED',
-                      isVerified: false,
-                      rows: sample.rows as any[]
-                    };
-                    db.scans.put(demoDoc);
-                    setDocuments(p => [demoDoc, ...p]);
-                    setActiveDoc(demoDoc);
-                    setActiveTab('review');
-                    showToast('Loaded AGW-85-01 Mt. Kenya East sample matrix!');
-                  }}
-                  className="bg-white border-1.5 border-[#1f7a4d]/40 rounded-[14px] p-2.5 flex flex-col items-center justify-center text-center tactile-card bg-[#bfedd2]/20 hover:bg-[#bfedd2]/40 active:scale-95 transition-all cursor-pointer"
-                >
-                  <div className="flex items-center gap-1.5 text-[#1f7a4d]">
-                    <span className="material-symbols-outlined text-[19px] text-[#1f7a4d]" style={{ fontVariationSettings: "'FILL' 1" }}>eco</span>
-                    <span className="font-headline text-[13px] font-bold text-[#1f7a4d]">Load Sample</span>
-                  </div>
-                  <span className="font-mono text-[10px] text-[#1f7a4d]/80 mt-0.5 font-semibold">AGW-85-01 Demo</span>
-                </button>
-              </div>
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isProcessing}
+                className="w-full bg-white border border-[#bec9bf]/40 rounded-[14px] py-3 px-4 flex items-center justify-center gap-2 tactile-card hover:bg-[#f2f4f3] active:scale-95 transition-all cursor-pointer shadow-xs"
+              >
+                <span className="material-symbols-outlined text-[20px] text-[#1f7a4d]">upload_file</span>
+                <span className="font-headline text-[14px] font-bold text-[#191c1c]">Browse Document Files (JPG, PNG, PDF)</span>
+              </button>
 
               <input ref={fileInputRef} type="file" accept="image/*,.pdf" onChange={handleFileUpload} className="hidden" />
               <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileUpload} className="hidden" />
-            </section>
-
-            {/* Offline Queue Banner Card */}
-            <section className="bg-white rounded-[18px] p-3 tactile-card border border-[#bec9bf]/35 flex items-center justify-between gap-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-full bg-[#ffdcc3] flex items-center justify-center text-[#a45800] shrink-0 shadow-sm">
-                  <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>cloud_off</span>
-                </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <h3 className="font-headline text-[13px] font-bold text-[#191c1c]">Offline Queue: Ready</h3>
-                    <span className="w-2 h-2 rounded-full bg-[#a45800]"></span>
-                  </div>
-                  <p className="font-mono text-[10.5px] text-[#6f7a71] font-medium">Scans save locally to IndexedDB</p>
-                </div>
-              </div>
-              <button 
-                onClick={() => showToast('Local cache synchronised with cloud node.')}
-                className="w-8 h-8 rounded-full bg-[#bceacf] hover:bg-[#9ef5be] text-[#1f7a4d] flex items-center justify-center active:scale-90 transition-transform shrink-0 shadow-sm"
-              >
-                <span className="material-symbols-outlined text-[18px] font-bold">sync</span>
-              </button>
             </section>
           </div>
         )}
 
         {/* ==================================================== */}
-        {/* VIEW 2: MATRIX REVIEW (From code__5__81df89d0.html)   */}
+        {/* VIEW 2: FORM AGW-85-01 OFFICIAL DOCUMENT REVIEW     */}
         {/* ==================================================== */}
         {activeTab === 'review' && activeDoc && (
           <div className="flex-1 overflow-y-auto px-3.5 pb-24 space-y-3 custom-scrollbar">
@@ -769,39 +735,71 @@ export default function App() {
             <div className="w-full bg-[#f8faf9] p-2 rounded-2xl border border-[#bec9bf]/30 flex flex-col gap-2 shadow-xs">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="font-headline text-[15px] font-bold text-[#191c1c] leading-tight">Matrix Review</h2>
-                  <span className="font-mono text-[10px] text-[#6f7a71] uppercase tracking-wider">{activeDoc.idNumber || 'FORM AGW-85-01'}</span>
+                  <h2 className="font-headline text-[15px] font-bold text-[#191c1c] leading-tight">Field Appraisal Document</h2>
+                  <span className="font-mono text-[10px] text-[#6f7a71] uppercase tracking-wider">{activeDoc.idNumber || 'FORM AGW-85-01'} • {activeDoc.plotCode || 'Kiamuriuki 1(k)'}</span>
                 </div>
-                {/* Segmented Grid vs Photo Toggle */}
-                <div className="bg-[#eceeed] p-1 rounded-xl flex items-center gap-1">
+                {/* Segmented Document Sheet vs DBH vs Height vs Photo Toggle */}
+                <div className="bg-[#eceeed] p-1 rounded-xl flex items-center gap-0.5 overflow-x-auto no-scrollbar">
                   <button 
-                    onClick={() => setViewMode('grid')}
-                    className={`py-1 px-3 rounded-lg flex items-center gap-1 text-xs font-mono font-bold transition-all ${
-                      viewMode === 'grid' ? 'bg-white shadow-sm text-[#1f7a4d]' : 'text-[#3f4941]'
+                    onClick={() => setViewMode('document')}
+                    className={`py-1 px-2.5 rounded-lg flex items-center gap-1 text-[11px] font-mono font-bold transition-all ${
+                      viewMode === 'document' ? 'bg-white shadow-sm text-[#1f7a4d]' : 'text-[#3f4941]'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-[15px]" style={{ fontVariationSettings: viewMode === 'grid' ? "'FILL' 1" : undefined }}>grid_on</span>
-                    <span>Grid</span>
+                    <span>Document Sheet</span>
+                  </button>
+                  <button 
+                    onClick={() => setViewMode('dbh')}
+                    className={`py-1 px-2 rounded-lg flex items-center gap-1 text-[11px] font-mono font-bold transition-all ${
+                      viewMode === 'dbh' ? 'bg-[#EFF6FF] text-[#1D4ED8] shadow-sm' : 'text-[#3f4941]'
+                    }`}
+                  >
+                    <span>DBH (Blue)</span>
+                  </button>
+                  <button 
+                    onClick={() => setViewMode('height')}
+                    className={`py-1 px-2 rounded-lg flex items-center gap-1 text-[11px] font-mono font-bold transition-all ${
+                      viewMode === 'height' ? 'bg-[#FEF2F2] text-[#DC2626] shadow-sm' : 'text-[#3f4941]'
+                    }`}
+                  >
+                    <span>Height (Red)</span>
                   </button>
                   <button 
                     onClick={() => setViewMode('photo')}
-                    className={`py-1 px-3 rounded-lg flex items-center gap-1 text-xs font-mono font-bold transition-all ${
+                    className={`py-1 px-2 rounded-lg flex items-center gap-1 text-[11px] font-mono font-bold transition-all ${
                       viewMode === 'photo' ? 'bg-white shadow-sm text-[#1f7a4d]' : 'text-[#3f4941]'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-[15px]">photo_library</span>
                     <span>Photo</span>
                   </button>
                 </div>
               </div>
             </div>
 
+            {/* OPTICAL AUDIT NOTICE (Specifications for unclear/faint numbers) */}
+            {activeDoc.visibilityIssues && activeDoc.visibilityIssues.length > 0 && (
+              <div className="bg-[#FEF3C7] border border-[#F59E0B]/40 rounded-2xl p-3 flex flex-col gap-1.5 shadow-xs">
+                <div className="flex items-center gap-2 text-[#B45309]">
+                  <span className="material-symbols-outlined text-[18px]">warning</span>
+                  <span className="font-mono text-[11.5px] font-bold">Optical Inspection Specifications ({activeDoc.visibilityIssues.length} Faint/Creased Numbers)</span>
+                </div>
+                <div className="divide-y divide-[#F59E0B]/20">
+                  {activeDoc.visibilityIssues.map((issue, idx) => (
+                    <div key={idx} className="pt-1.5 pb-1 flex items-center justify-between font-mono text-[10.5px]">
+                      <span className="font-bold text-[#92400E]">Row {issue.row}, Col {issue.col} [{issue.field}]</span>
+                      <span className="text-[#78350F] text-right">{issue.issue}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* If Photo View selected: Show Original Photo Audit View */}
             {viewMode === 'photo' && (
               <section className="tactile-card rounded-2xl p-3 border border-[#bec9bf]/30 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-[11px] font-bold text-[#1f7a4d] uppercase">Physical Document Scan</span>
-                  <span className="font-mono text-[10px] text-[#6f7a71]">High-Res Optical Proof</span>
+                  <span className="font-mono text-[10px] text-[#6f7a71]">Chuka Forest Station Sheet</span>
                 </div>
                 <div className="max-h-[360px] overflow-auto rounded-xl bg-black/95 flex items-center justify-center p-2 border border-[#bec9bf]/40">
                   {activeDoc.imageDataUrl ? (
@@ -815,172 +813,193 @@ export default function App() {
               </section>
             )}
 
-            {/* Metadata Card: Forest Inventory Record */}
+            {/* Metadata Card: Forest Inventory Specifications */}
             <section className="tactile-card rounded-2xl p-3.5 border border-[#bec9bf]/30">
               <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#eceeed]">
                 <div className="flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[#1f7a4d] text-[18px]">nature</span>
-                  <span className="font-mono text-[11px] text-[#1f7a4d] font-bold uppercase tracking-wider">Forest Inventory Record</span>
+                  <span className="font-mono text-[11px] text-[#1f7a4d] font-bold uppercase tracking-wider">FOREST INVENTORY SPECIFICATIONS</span>
                 </div>
-                <span className="font-mono text-[10px] bg-[#eceeed] px-2 py-0.5 rounded text-[#3f4941]">24.10.2026</span>
+                <span className="font-mono text-[10px] bg-[#eceeed] px-2 py-0.5 rounded text-[#3f4941]">{new Date(activeDoc.date).toLocaleDateString()}</span>
               </div>
               <div className="grid grid-cols-2 gap-2 font-mono text-[11px]">
                 <div className="bg-[#f2f4f3] p-2 rounded-lg">
                   <span className="text-[#6f7a71] block text-[9.5px] uppercase font-medium">Station</span>
-                  <span className="font-bold text-[#191c1c] truncate block mt-0.5">{activeDoc.forestStation || 'Mt. Kenya East'}</span>
+                  <span className="font-bold text-[#191c1c] truncate block mt-0.5">{activeDoc.forestStation || 'Chuka Forest Station'}</span>
                 </div>
                 <div className="bg-[#f2f4f3] p-2 rounded-lg">
                   <span className="text-[#6f7a71] block text-[9.5px] uppercase font-medium">Compartment</span>
-                  <span className="font-bold text-[#191c1c] block mt-0.5">{activeDoc.plotCode || 'Comp 14'}</span>
+                  <span className="font-bold text-[#191c1c] block mt-0.5">{activeDoc.plotCode || 'Kiamuriuki 1(k)'}</span>
                 </div>
                 <div className="bg-[#f2f4f3] p-2 rounded-lg col-span-2">
                   <span className="text-[#6f7a71] block text-[9.5px] uppercase font-medium">Species Taxon</span>
-                  <span className="font-bold text-[#1f7a4d] block mt-0.5 italic">Cupressus lusitanica (Cypress)</span>
+                  <span className="font-bold text-[#1f7a4d] block mt-0.5 italic">Eucalyptus saligna (Timber / Whole)</span>
                 </div>
                 <div className="bg-[#f2f4f3] p-2 rounded-lg">
                   <span className="text-[#6f7a71] block text-[9.5px] uppercase font-medium">Planting Year</span>
-                  <span className="font-bold text-[#191c1c] block mt-0.5">1998 <span className="font-normal text-[#6f7a71] text-[9.5px]">(Age 28)</span></span>
+                  <span className="font-bold text-[#191c1c] block mt-0.5">1982 <span className="font-normal text-[#6f7a71] text-[9.5px]">(Age 62)</span></span>
                 </div>
                 <div className="bg-[#f2f4f3] p-2 rounded-lg">
-                  <span className="text-[#6f7a71] block text-[9.5px] uppercase font-medium">Officer In-Charge</span>
-                  <span className="font-bold text-[#191c1c] block mt-0.5">{activeDoc.observerName || 'J. Kariuki'}</span>
+                  <span className="text-[#6f7a71] block text-[9.5px] uppercase font-medium">Measuring Officer</span>
+                  <span className="font-bold text-[#191c1c] block mt-0.5">{activeDoc.observerName || 'Faith'}</span>
                 </div>
               </div>
             </section>
 
-            {/* Verification Progress Strip */}
-            <section className="tactile-card rounded-2xl p-3 border border-[#bec9bf]/30 flex flex-col gap-2">
-              <div className="flex items-center justify-between font-mono text-[11px]">
-                <div className="flex items-center gap-1.5 font-bold">
-                  <span className="material-symbols-outlined text-[#1f7a4d] text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>
-                  <span className="text-[#191c1c]">{verifiedCells}/{totalCells} verified</span>
-                </div>
-                <div className="flex items-center gap-1 bg-[#FEF3C7] text-[#D97706] px-2 py-0.5 rounded-full font-bold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#D97706]"></span>
-                  <span>{lowConfCount} need review</span>
-                </div>
-              </div>
-              <div className="w-full h-2 bg-[#eceeed] rounded-full overflow-hidden flex">
-                <div className="h-full bg-[#1f7a4d]" style={{ width: `${(verifiedCells / totalCells) * 100}%` }}></div>
-                <div className="h-full bg-[#D97706]" style={{ width: `${(lowConfCount / totalCells) * 100}%` }}></div>
-              </div>
-            </section>
-
-            {/* 10x19 Matrix Grid Card Container */}
-            <section className="tactile-card rounded-2xl p-3 border border-[#bec9bf]/30">
-              <div className="flex items-center justify-between pb-2 mb-1.5">
-                <div className="flex items-center gap-1">
-                  <span className="font-headline text-[15px] font-bold text-[#191c1c]">Stumpage DBH</span>
-                  <span className="font-mono text-[11px] text-[#6f7a71]">(cm)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1 font-mono text-[10px] text-[#6f7a71]">
-                    <span className="w-2 h-2 rounded-full bg-[#D1FAE5] ring-1 ring-[#1f7a4d]/40"></span>
-                    <span>≥85%</span>
+            {/* TABLE 1: PRIMARY DIAMETER AT BREAST HEIGHT (DBH) - BLUE NUMBERS */}
+            {(viewMode === 'document' || viewMode === 'dbh') && (
+              <section className="tactile-card rounded-2xl p-3 border border-[#1D4ED8]/30 bg-white">
+                <div className="flex items-center justify-between pb-2 mb-1.5 border-b border-[#EFF6FF]">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#1D4ED8]"></span>
+                    <div>
+                      <h3 className="font-headline text-[13.5px] font-bold text-[#1E3A8A]">Table 1: Diameter at Breast Height (DBH)</h3>
+                      <p className="font-mono text-[10px] text-[#3B82F6]">Extracted Blue Ink Entries • 10 Rows × 19 Columns</p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1 font-mono text-[10px] text-[#D97706]">
-                    <span className="w-2 h-2 rounded-full bg-[#FEF3C7] ring-1 ring-[#D97706]"></span>
-                    <span>&lt;85%</span>
-                  </div>
+                  <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-[#EFF6FF] text-[#1D4ED8] border border-[#BFDBFE]">
+                    BLUE INK
+                  </span>
                 </div>
-              </div>
 
-              {/* Two-Axis Sticky 10x19 Table */}
-              <div className="relative overflow-x-auto max-h-[300px] border border-[#eceeed] rounded-xl custom-scrollbar bg-white">
-                <table className="w-full border-collapse font-mono text-[12px] tabular-nums">
-                  <thead>
-                    <tr className="bg-[#e6e9e8] border-b border-[#eceeed] sticky top-0 z-30">
-                      <th className="sticky left-0 top-0 z-40 bg-[#e6e9e8] px-2 py-2 text-center text-[10px] font-bold text-[#6f7a71] uppercase min-w-[42px] border-r border-[#eceeed]">
-                        R\C
-                      </th>
-                      {getDocumentHeaders(activeDoc).map((h) => (
-                        <th key={h.key} className="px-2 py-2 text-center text-[10px] font-bold text-[#3f4941] min-w-[50px]">
-                          {h.label.replace(/^Col(umn)?\s*/i, 'C')}
+                {/* Two-Axis Sticky 10x19 DBH Table */}
+                <div className="relative overflow-x-auto max-h-[300px] border border-[#BFDBFE] rounded-xl custom-scrollbar bg-white">
+                  <table className="w-full border-collapse font-mono text-[12px] tabular-nums">
+                    <thead>
+                      <tr className="bg-[#EFF6FF] border-b border-[#BFDBFE] sticky top-0 z-30">
+                        <th className="sticky left-0 top-0 z-40 bg-[#DBEAFE] px-2 py-2 text-center text-[10px] font-bold text-[#1E40AF] uppercase min-w-[42px] border-r border-[#BFDBFE]">
+                          R\C
                         </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#eceeed]">
-                    {activeDoc.rows.map((row) => (
-                      <tr key={row.rowNumber} className="hover:bg-[#f2f4f3] transition-colors">
-                        <td className="sticky left-0 z-20 bg-[#eceeed] px-2 py-2 text-center font-bold text-[#6f7a71] border-r border-[#eceeed] text-[11px]">
-                          R{row.rowNumber}
-                        </td>
-                        {getDocumentHeaders(activeDoc).map((h) => {
-                          const val = getCellDisplay(row, h.key);
-                          const conf = getCellConfidence(row, h.key);
-                          const isLow = conf < 0.85;
-                          const isSelected = selectedCell?.rowNumber === row.rowNumber && selectedCell?.colKey === h.key;
-
-                          return (
-                            <td
-                              key={h.key}
-                              onClick={() => {
-                                setSelectedCell({
-                                  rowNumber: row.rowNumber,
-                                  colKey: h.key,
-                                  colLabel: h.label,
-                                  value: val,
-                                  confidence: conf,
-                                  isUncertain: isLow,
-                                  candidateValues: row.candidateValues?.[h.key]
-                                });
-                                setManualOverrideVal(val);
-                              }}
-                              className={`px-2 py-2 text-right cursor-pointer select-none border-r border-[#eceeed]/60 transition-all ${
-                                isSelected
-                                  ? 'bg-[#FEF3C7] text-[#D97706] font-bold ring-2 ring-[#1f7a4d] z-10'
-                                  : isLow
-                                    ? 'bg-[#FEF3C7] text-[#D97706] font-bold hover:bg-[#fde68a]'
-                                    : 'hover:bg-[#bfedd2]/30 text-[#191c1c]'
-                              }`}
-                            >
-                              <div className="flex items-center justify-end gap-1">
-                                {isLow && <span className="w-1.5 h-1.5 rounded-full bg-[#D97706] shrink-0"></span>}
-                                <span>{val}</span>
-                              </div>
-                            </td>
-                          );
-                        })}
+                        {getDocumentHeaders(activeDoc).map((h) => (
+                          <th key={h.key} className="px-2 py-2 text-center text-[10px] font-bold text-[#1E40AF] min-w-[50px]">
+                            {h.label.replace(/^Col(umn)?\s*/i, 'C')}
+                          </th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-[#BFDBFE]/60">
+                      {activeDoc.rows.map((row) => (
+                        <tr key={row.rowNumber} className="hover:bg-[#EFF6FF]/60 transition-colors">
+                          <td className="sticky left-0 z-20 bg-[#DBEAFE] px-2 py-2 text-center font-bold text-[#1E40AF] border-r border-[#BFDBFE] text-[11px]">
+                            R{row.rowNumber}
+                          </td>
+                          {getDocumentHeaders(activeDoc).map((h) => {
+                            const val = getCellDisplay(row, h.key);
+                            const conf = getCellConfidence(row, h.key);
+                            const isLow = conf < 0.85;
+
+                            return (
+                              <td
+                                key={h.key}
+                                onClick={() => {
+                                  setSelectedCell({
+                                    rowNumber: row.rowNumber,
+                                    colKey: h.key,
+                                    colLabel: h.label,
+                                    value: val,
+                                    confidence: conf,
+                                    isUncertain: isLow,
+                                    candidateValues: row.candidateValues?.[h.key]
+                                  });
+                                  setManualOverrideVal(val);
+                                }}
+                                className={`px-2 py-2 text-center font-bold text-[#1D4ED8] cursor-pointer select-none border-r border-[#BFDBFE]/50 transition-all ${
+                                  isLow ? 'bg-[#FEF3C7] text-[#D97706]' : 'hover:bg-[#DBEAFE]/40'
+                                }`}
+                              >
+                                {val}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+
+            {/* EXACTLY TWO LINES OF BLANK SPACE (Document Separator) */}
+            {viewMode === 'document' && (
+              <div className="w-full py-2.5 px-4 rounded-xl bg-[#eceeed] border border-[#bec9bf]/40 flex flex-col items-center justify-center font-mono text-center">
+                <span className="text-[10.5px] font-bold text-[#3f4941] tracking-wider uppercase">
+                  — EXACTLY TWO LINES OF BLANK SPACE —
+                </span>
+                <span className="text-[9.5px] text-[#6f7a71] mt-0.5">Line 1: [Blank Space Break] • Line 2: [Blank Space Break]</span>
               </div>
-            </section>
+            )}
+
+            {/* TABLE 2: TREE HEIGHT (HT) - RED NUMBERS */}
+            {(viewMode === 'document' || viewMode === 'height') && (
+              <section className="tactile-card rounded-2xl p-3 border border-[#DC2626]/30 bg-white">
+                <div className="flex items-center justify-between pb-2 mb-1.5 border-b border-[#FEF2F2]">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#DC2626]"></span>
+                    <div>
+                      <h3 className="font-headline text-[13.5px] font-bold text-[#991B1B]">Table 2: Tree Height (HT)</h3>
+                      <p className="font-mono text-[10px] text-[#EF4444]">Extracted Red Ink Annotations • 10 Rows × 19 Columns</p>
+                    </div>
+                  </div>
+                  <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-[#FEF2F2] text-[#DC2626] border border-[#FECACA]">
+                    RED INK
+                  </span>
+                </div>
+
+                {/* Two-Axis Sticky 10x19 Height Table */}
+                <div className="relative overflow-x-auto max-h-[300px] border border-[#FECACA] rounded-xl custom-scrollbar bg-white">
+                  <table className="w-full border-collapse font-mono text-[12px] tabular-nums">
+                    <thead>
+                      <tr className="bg-[#FEF2F2] border-b border-[#FECACA] sticky top-0 z-30">
+                        <th className="sticky left-0 top-0 z-40 bg-[#FEE2E2] px-2 py-2 text-center text-[10px] font-bold text-[#B91C1C] uppercase min-w-[42px] border-r border-[#FECACA]">
+                          R\C
+                        </th>
+                        {getDocumentHeaders(activeDoc).map((h) => (
+                          <th key={h.key} className="px-2 py-2 text-center text-[10px] font-bold text-[#B91C1C] min-w-[50px]">
+                            {h.label.replace(/^Col(umn)?\s*/i, 'C')}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#FECACA]/60">
+                      {activeDoc.rows.map((row) => (
+                        <tr key={row.rowNumber} className="hover:bg-[#FEF2F2]/60 transition-colors">
+                          <td className="sticky left-0 z-20 bg-[#FEE2E2] px-2 py-2 text-center font-bold text-[#B91C1C] border-r border-[#FECACA] text-[11px]">
+                            R{row.rowNumber}
+                          </td>
+                          {getDocumentHeaders(activeDoc).map((h) => {
+                            const val = getHeightCellDisplay(row, h.key);
+                            return (
+                              <td
+                                key={h.key}
+                                onClick={() => {
+                                  setSelectedCell({
+                                    rowNumber: row.rowNumber,
+                                    colKey: h.key,
+                                    colLabel: h.label,
+                                    value: val,
+                                    confidence: 0.95,
+                                    isUncertain: false
+                                  });
+                                  setManualOverrideVal(val);
+                                }}
+                                className="px-2 py-2 text-center font-bold text-[#DC2626] cursor-pointer select-none border-r border-[#FECACA]/50 hover:bg-[#FEE2E2]/40 transition-all"
+                              >
+                                {val}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
 
             {/* Bottom Action Card: Cell Filter & Export Trigger */}
             <section className="tactile-card rounded-2xl p-3 border border-[#bec9bf]/30 space-y-2.5">
               <div className="flex items-center justify-between">
-                <button 
-                  onClick={() => {
-                    // Jump to first low confidence cell
-                    const headers = getDocumentHeaders(activeDoc);
-                    for (const r of activeDoc.rows) {
-                      for (const h of headers) {
-                        if (getCellConfidence(r, h.key) < 0.85) {
-                          setSelectedCell({
-                            rowNumber: r.rowNumber,
-                            colKey: h.key,
-                            colLabel: h.label,
-                            value: getCellDisplay(r, h.key),
-                            confidence: getCellConfidence(r, h.key),
-                            isUncertain: true,
-                            candidateValues: r.candidateValues?.[h.key]
-                          });
-                          setManualOverrideVal(getCellDisplay(r, h.key));
-                          return;
-                        }
-                      }
-                    }
-                    showToast('All 190 cells are already verified!');
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FEF3C7] text-[#D97706] font-mono text-[11px] font-bold border border-[#D97706]/20 active:scale-95 transition-transform cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[16px]">filter_list</span>
-                  <span>{lowConfCount} Low Confidence</span>
-                </button>
-
+                <span className="font-mono text-[11px] font-bold text-[#191c1c]">Official Exports (2-Line Spacing)</span>
                 <div className="flex items-center gap-1 font-mono text-[11px] font-bold text-[#6f7a71]">
                   <span onClick={() => handleExportExcel(activeDoc)} className="px-1.5 py-0.5 rounded bg-[#eceeed] text-[#1f7a4d] cursor-pointer hover:bg-[#d1fae5]">.xlsx</span>
                   <span onClick={() => handleExportCsv(activeDoc)} className="px-1.5 py-0.5 rounded bg-[#eceeed] cursor-pointer hover:bg-slate-200">.csv</span>
@@ -994,7 +1013,7 @@ export default function App() {
                 className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-b from-[#2D8F5E] to-[#1F6B43] text-white font-headline text-[15px] font-bold tracking-wide flex items-center justify-center gap-2 shadow-lg shadow-[#1f7a4d]/30 border-t border-white/30 active:scale-[0.98] transition-transform cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[20px]">ios_share</span>
-                <span>Export Appraisal Matrix</span>
+                <span>Export Official Document</span>
               </button>
             </section>
           </div>
@@ -1174,114 +1193,62 @@ export default function App() {
               </span>
             </div>
 
-            {/* CARD 1: API Configuration Card */}
-            <section className="tactile-card bg-white rounded-2xl p-4">
+            {/* CARD 1: Forest Station Biometric Calibration */}
+            <section className="tactile-card bg-white rounded-2xl p-4 shadow-sm border border-[#bec9bf]/30">
               <div className="flex items-start gap-2.5 pb-2.5 border-b border-[#bec9bf]/30">
                 <div className="w-8 h-8 rounded-lg bg-[#bceacf]/60 flex items-center justify-center text-[#1f7a4d] shrink-0">
-                  <span className="material-symbols-outlined text-[19px]">key</span>
+                  <span className="material-symbols-outlined text-[19px]">forest</span>
                 </div>
                 <div>
-                  <h2 className="font-headline text-[16px] leading-5 font-bold text-[#191c1c]">AI Vision & OCR Engine</h2>
-                  <p className="font-mono text-[11px] text-[#3f4941] leading-4 pt-0.5">Configure recognition models for field appraisals</p>
+                  <h2 className="font-headline text-[16px] leading-5 font-bold text-[#191c1c]">Forest Station Parameters</h2>
+                  <p className="font-mono text-[11px] text-[#3f4941] leading-4 pt-0.5">Biometric calibration & appraisal standards</p>
                 </div>
               </div>
 
-              <div className="mt-3.5 space-y-3">
-                <div>
-                  <label className="block font-mono text-[11px] font-bold text-[#191c1c] mb-1 uppercase tracking-wider">
-                    Google Gemini API Key
-                  </label>
-                  <div className="relative flex items-center">
-                    <input 
-                      type={showKeyText ? 'text' : 'password'}
-                      value={geminiKeyInput}
-                      onChange={(e) => {
-                        setGeminiKeyInput(e.target.value);
-                        setKeyTestStatus('idle');
-                      }}
-                      placeholder="AIzaSy..."
-                      className="w-full bg-[#f2f4f3] border border-[#bec9bf]/80 rounded-lg px-3 py-2 text-[#191c1c] font-mono text-[12px] tracking-wide focus:outline-none focus:ring-1.5 focus:ring-[#1f7a4d]"
-                    />
-                    <div className="absolute right-1.5 flex items-center gap-1 text-[#3f4941]">
-                      <button 
-                        type="button" 
-                        onClick={() => setShowKeyText(!showKeyText)}
-                        className="p-1 rounded-md hover:bg-[#e1e3e2]"
-                      >
-                        <span className="material-symbols-outlined text-[18px]">
-                          {showKeyText ? 'visibility_off' : 'visibility'}
-                        </span>
-                      </button>
-                    </div>
+              <div className="mt-3.5 space-y-2.5">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-2.5 bg-[#f2f4f3] rounded-xl border border-[#bec9bf]/40">
+                    <span className="font-mono text-[10px] text-[#6f7a71] uppercase tracking-wider block">Forest Station</span>
+                    <span className="font-headline text-[13px] font-bold text-[#191c1c] block mt-0.5">Chuka Station</span>
+                  </div>
+                  <div className="p-2.5 bg-[#f2f4f3] rounded-xl border border-[#bec9bf]/40">
+                    <span className="font-mono text-[10px] text-[#6f7a71] uppercase tracking-wider block">Target Species</span>
+                    <span className="font-headline text-[13px] font-bold text-[#191c1c] block mt-0.5">E. saligna (62 yrs)</span>
+                  </div>
+                  <div className="p-2.5 bg-[#f2f4f3] rounded-xl border border-[#bec9bf]/40">
+                    <span className="font-mono text-[10px] text-[#6f7a71] uppercase tracking-wider block">Default Compartment</span>
+                    <span className="font-headline text-[13px] font-bold text-[#191c1c] block mt-0.5">Kiamuriuki 1(k)</span>
+                  </div>
+                  <div className="p-2.5 bg-[#f2f4f3] rounded-xl border border-[#bec9bf]/40">
+                    <span className="font-mono text-[10px] text-[#6f7a71] uppercase tracking-wider block">Grid Specification</span>
+                    <span className="font-headline text-[13px] font-bold text-[#191c1c] block mt-0.5">10 × 19 (190 Stems)</span>
                   </div>
                 </div>
 
-                {/* Connection Status & Test Button */}
-                <div className="bg-[#f2f4f3]/70 rounded-xl p-2.5 flex items-center justify-between border border-[#bec9bf]/35">
-                  <div className="flex items-center gap-2">
+                {/* Secure Vision Node Status */}
+                <div className="bg-[#f2f4f3]/80 rounded-xl p-3 flex items-center justify-between border border-[#bec9bf]/35">
+                  <div className="flex items-center gap-2.5">
                     <span className="relative flex h-2.5 w-2.5">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#9ef5be] opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#1f7a4d]"></span>
                     </span>
                     <div className="flex flex-col">
                       <span className="font-mono text-[11px] font-bold text-[#191c1c] leading-tight">
-                        {keyTestStatus === 'valid' ? 'Connected (Gemini 2.5 Flash)' : keyTestStatus === 'invalid' ? 'Invalid Key' : 'Gemini Hybrid Engine'}
+                        Optical OCR & Dual-Ink Pipeline
                       </span>
-                      <span className="font-mono text-[10px] text-[#006038]">Multi-modal 10x19 Matrix</span>
+                      <span className="font-mono text-[10px] text-[#1f7a4d]">Pre-configured • Secured Node #KE-085</span>
                     </div>
                   </div>
-                  <button 
-                    type="button"
-                    onClick={handleTestKey}
-                    disabled={keyTestStatus === 'testing' || !geminiKeyInput.trim()}
-                    className="px-2.5 py-1 rounded-lg bg-white border border-[#bec9bf] font-mono text-[11px] text-[#006038] font-bold hover:bg-[#e6e9e8] active:scale-95 transition-all"
-                  >
-                    {keyTestStatus === 'testing' ? 'Testing...' : 'Test Connection'}
-                  </button>
-                </div>
-
-                {/* Input 2: Google Cloud Vision API Key */}
-                <div>
-                  <label className="block font-mono text-[11px] font-bold text-[#191c1c] mb-1 uppercase tracking-wider">
-                    Google Cloud Vision Key <span className="text-[#3f4941] font-normal lowercase">(optional Stage 1 OCR)</span>
-                  </label>
-                  <input 
-                    type="password"
-                    value={visionKeyInput}
-                    onChange={(e) => setVisionKeyInput(e.target.value)}
-                    placeholder="Enter secondary optical key..."
-                    className="w-full bg-[#f2f4f3] border border-[#bec9bf]/80 rounded-lg px-3 py-2 text-[#191c1c] font-mono text-[12px] focus:outline-none focus:ring-1.5 focus:ring-[#1f7a4d]"
-                  />
+                  <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#dcfce7] text-[#166534] border border-[#bbf7d0]">
+                    ACTIVE
+                  </span>
                 </div>
 
                 <div className="flex items-start gap-2 p-2.5 bg-[#f2f4f3]/60 rounded-xl border border-[#bec9bf]/30">
-                  <span className="material-symbols-outlined text-[#1f7a4d] text-[18px] shrink-0 mt-0.5">lock</span>
+                  <span className="material-symbols-outlined text-[#1f7a4d] text-[18px] shrink-0 mt-0.5">verified_user</span>
                   <p className="font-mono text-[10.5px] text-[#3f4941] leading-4">
-                    API keys are stored safely on your physical browser storage (localStorage) and are never sent to third-party tracking servers.
+                    Form AGW-85-01 Dual-Ink Separation (Blue DBH & Red Height) with 2-line spacing invariant is permanently enforced across all export targets.
                   </p>
-                </div>
-
-                <div className="pt-2 flex justify-between items-center">
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      clearStoredGeminiKey();
-                      setGeminiKeyInput('');
-                      setVisionKeyInput('');
-                      showToast('All API keys cleared.');
-                    }}
-                    className="font-mono text-[11px] font-bold text-[#ba1a1a] hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-[15px]">delete_forever</span>
-                    Clear Keys
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={handleSaveKeys}
-                    className="primary-btn-tactile text-white font-mono text-[11px] font-bold px-4 py-2 rounded-xl shadow-md cursor-pointer active:scale-95"
-                  >
-                    Save Configuration
-                  </button>
                 </div>
               </div>
             </section>

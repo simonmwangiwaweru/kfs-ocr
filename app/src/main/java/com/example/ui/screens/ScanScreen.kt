@@ -401,107 +401,27 @@ fun ScanScreen(
                 )
             }
 
-            // Secondary Buttons Cluster
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // Browse Files
-                Surface(
-                    color = SurfaceCard,
-                    shape = RoundedCornerShape(14.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, HairlineBorderSubtle),
-                    shadowElevation = 2.dp,
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable {
-                            viewModel.captureSinglePage("Comp 14", "Mt. Kenya East", "J. Kariuki")
-                            Toast.makeText(context, "Loaded document file", Toast.LENGTH_SHORT).show()
-                        }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Icon(Icons.Outlined.UploadFile, contentDescription = null, tint = BrandEmerald, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(text = "Browse Files", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                    }
-                }
-
-                // Load Sample Demo
-                Surface(
-                    color = SecondaryFixed.copy(alpha = 0.3f),
-                    shape = RoundedCornerShape(14.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, BrandEmerald.copy(alpha = 0.4f)),
-                    shadowElevation = 2.dp,
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable {
-                            viewModel.loadSampleAgw85()
-                            Toast.makeText(context, "Loaded AGW-85-01 Mt. Kenya East appraisal!", Toast.LENGTH_SHORT).show()
-                        }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Icon(Icons.Default.Eco, contentDescription = null, tint = BrandEmerald, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(text = "Load Sample", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = BrandEmerald)
-                    }
-                }
-            }
-        }
-
-        // Offline Queue Banner Card
-        Surface(
-            color = SurfaceCard,
-            shape = RoundedCornerShape(18.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, HairlineBorderSubtle),
-            shadowElevation = 2.dp,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
+            // Secondary Action: Browse Files
+            Surface(
+                color = SurfaceCard,
+                shape = RoundedCornerShape(14.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, HairlineBorderSubtle),
+                shadowElevation = 2.dp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .clickable {
+                        viewModel.captureSinglePage("Comp 14", "Mt. Kenya East", "J. Kariuki")
+                        Toast.makeText(context, "Loaded document file", Toast.LENGTH_SHORT).show()
+                    }
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(FlagAmberBg),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.CloudOff, contentDescription = null, tint = FlagAmber, modifier = Modifier.size(20.dp))
-                    }
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(text = "Offline Queue: 2 sheets waiting", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(FlagAmber))
-                        }
-                        Text(text = "They'll sync when you're back online", fontSize = 10.5.sp, color = TextMuted)
-                    }
-                }
-
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(SecondaryContainer)
-                        .clickable {
-                            viewModel.syncAll()
-                            Toast.makeText(context, "Synced queued field records", Toast.LENGTH_SHORT).show()
-                        },
-                    contentAlignment = Alignment.Center
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
                 ) {
-                    Icon(Icons.Default.Sync, contentDescription = "Sync", tint = BrandEmeraldDark, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Outlined.UploadFile, contentDescription = null, tint = BrandEmerald, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Browse Document Files (JPG, PNG, PDF)", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 }
             }
         }

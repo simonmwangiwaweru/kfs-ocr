@@ -98,39 +98,20 @@ fun KfsInventoryApp(viewModel: InventoryViewModel = viewModel()) {
                         }
                     }
 
-                        // Center Wordmark + Sync LED Pill
+                        // Center Wordmark
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text(text = "KFS", fontSize = 18.sp, fontWeight = FontWeight.Black, color = TextPrimary)
                                 Text(text = "Scan", fontSize = 18.sp, fontWeight = FontWeight.Black, color = BrandEmerald)
                             }
-
-                            Surface(
-                                color = SecondaryFixed.copy(alpha = 0.45f),
-                                shape = RoundedCornerShape(9999.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, SecondaryContainer.copy(alpha = 0.5f)),
-                                modifier = Modifier.padding(top = 2.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(6.dp)
-                                            .clip(CircleShape)
-                                            .background(if (isOffline) FlagAmber else VerifiedGreen)
-                                    )
-                                    Text(
-                                        text = if (isOffline) "OFFLINE QUEUE" else "CLOUD SYNC READY",
-                                        fontSize = 9.sp,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isOffline) FlagAmberText else BrandEmeraldDark
-                                    )
-                                }
-                            }
+                            Text(
+                                text = "Form AGW-85-01",
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextSecondary,
+                                modifier = Modifier.padding(top = 1.dp)
+                            )
                         }
 
                         IconButton(

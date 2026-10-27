@@ -28,8 +28,10 @@ export interface CellComment {
 
 export interface ScanRow {
   rowNumber: number;
-  /** Column key -> transcribed text. The source of truth for display and export. */
+  /** Column key -> transcribed text. The source of truth for DBH (Blue ink) display and export. */
   cells?: Record<string, string>;
+  /** Column key -> tree height (Red ink annotations). */
+  heightCells?: Record<string, string>;
   /** Column key -> OCR confidence, 0..1. */
   cellConfidence?: Record<string, number>;
   candidateValues?: Record<string, CandidatePrediction[]>;
@@ -75,6 +77,7 @@ export interface ScanRecord {
   /** 'pending' = image saved, waiting for a connection or key. 'failed' = last attempt errored. Absent on older scans (= done). */
   ocrStatus?: OcrStatus;
   ocrError?: string;
+  visibilityIssues?: Array<{ row: number; col: number; field: string; issue: string }>;
   rows: ScanRow[];
 }
 

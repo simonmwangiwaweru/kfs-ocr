@@ -30,7 +30,8 @@ export interface GeminiRowExtraction {
   heightM: string; // Secondary measurement
   healthStatus: string;
   notes: string;
-  cells?: Record<string, string>; // Dynamic cell values: col_1 through col_19
+  cells?: Record<string, string>; // Dynamic cell values: col_1 through col_19 (DBH in Blue)
+  heightCells?: Record<string, string>; // Dynamic cell values: col_1 through col_19 (Height in Red)
   cellConfidence?: Record<string, number>;
   candidateValues?: Record<string, CandidatePrediction[]>;
   confidence: {
@@ -66,6 +67,7 @@ export interface GeminiExtractionResult {
   summary: string;
   metadataFields: DocumentMetadataItem[];
   tableHeaders: DocumentHeaderColumn[];
+  visibilityIssues?: Array<{ row: number; col: number; field: string; issue: string }>;
   rows: GeminiRowExtraction[];
 }
 
@@ -436,45 +438,63 @@ export function generateLocalScan(title: string = 'KFS_Form_AGW-85-01_Kiamuriuki
     label: `Col ${i + 1}`
   }));
 
-  // Realistic sample DBH numbers typical of Kenyan Eucalyptus plantations (250 - 450 mm / cm)
+  // Realistic sample DBH numbers (Blue ink) from Chuka Forest Station Form AGW-85-01
   const sampleValues = [
-    ['285', '340', '275', '310', '290', '355', '260', '330', '295', '305', '280', '320', '345', '270', '315', '290', '360', '265', '300'],
-    ['310', '295', '350', '280', '325', '300', '340', '275', '315', '360', '285', '330', '295', '310', '345', '270', '325', '305', '335'],
-    ['275', '330', '290', '345', '265', '315', '300', '355', '280', '325', '340', '295', '310', '360', '275', '335', '290', '320', '350'],
-    ['320', '285', '360', '270', '335', '295', '310', '345', '300', '325', '280', '350', '265', '340', '315', '290', '330', '275', '360'],
-    ['290', '345', '280', '325', '350', '275', '330', '300', '360', '265', '315', '295', '340', '285', '320', '355', '270', '335', '310'],
-    ['335', '270', '315', '360', '290', '340', '285', '325', '275', '350', '300', '330', '360', '265', '310', '345', '280', '320', '295'],
-    ['300', '355', '265', '330', '275', '315', '345', '290', '325', '360', '285', '340', '270', '335', '305', '360', '295', '310', '325'],
-    ['280', '325', '340', '295', '360', '270', '310', '355', '285', '330', '315', '275', '345', '300', '325', '280', '350', '335', '270'],
-    ['350', '265', '335', '300', '320', '345', '275', '310', '360', '290', '330', '285', '325', '355', '270', '315', '340', '295', '330'],
-    ['265', '315', '300', '340', '285', '360', '295', '325', '310', '275', '350', '335', '280', '320', '345', '290', '330', '360', '275']
+    ['236', '330', '204', '296', '239', '276', '334', '204', '276', '339', '284', '303', '296', '334', '272', '296', '234', '272', '296'],
+    ['303', '247', '235', '214', '326', '235', '218', '224', '204', '295', '304', '330', '224', '208', '296', '335', '215', '214', '245'],
+    ['245', '330', '297', '230', '325', '294', '235', '218', '224', '235', '219', '226', '241', '218', '234', '229', '245', '229', '235'],
+    ['214', '295', '205', '244', '218', '234', '218', '229', '308', '274', '308', '276', '312', '226', '244', '208', '227', '205', '274'],
+    ['216', '294', '244', '218', '238', '295', '224', '218', '225', '205', '244', '308', '254', '200', '175', '324', '308', '247', '307'],
+    ['304', '266', '208', '247', '205', '324', '208', '215', '224', '302', '246', '322', '319', '309', '227', '315', '295', '322', '366'],
+    ['208', '224', '368', '245', '304', '230', '314', '275', '327', '365', '218', '295', '220', '324', '316', '234', '316', '295', '309'],
+    ['294', '312', '294', '302', '366', '319', '345', '309', '272', '346', '339', '154', '216', '247', '208', '328', '316', '272', '366'],
+    ['228', '296', '330', '274', '316', '317', '224', '366', '264', '324', '316', '295', '224', '316', '242', '319', '308', '227', '302'],
+    ['214', '330', '294', '236', '302', '326', '259', '277', '318', '272', '264', '309', '272', '366', '307', '242', '312', '302', '264']
+  ];
+
+  // Smaller numbers in Red ink (Tree Height in meters) annotated on top of blue numbers
+  const heightValues = [
+    ['10.0', '11.0', '12.0', '13.0', '14.0', '15.0', '16.0', '17.0', '18.0', '19.0', '20.0', '21.0', '22.0', '23.0', '24.0', '25.0', '26.0', '27.0', '28.0'],
+    ['10.5', '11.5', '12.5', '13.5', '14.5', '15.5', '16.5', '17.5', '18.5', '19.5', '20.5', '21.5', '22.5', '23.5', '24.5', '25.5', '26.5', '27.5', '28.5'],
+    ['11.0', '12.0', '13.0', '14.0', '15.0', '16.0', '17.0', '18.0', '19.0', '20.0', '21.0', '22.0', '23.0', '24.0', '25.0', '26.0', '27.0', '28.0', '29.0'],
+    ['11.5', '12.5', '13.5', '14.5', '15.5', '16.5', '17.5', '18.5', '19.5', '20.5', '21.5', '22.5', '23.5', '24.5', '25.5', '26.5', '27.5', '28.5', '29.5'],
+    ['12.0', '13.0', '14.0', '15.0', '16.0', '17.0', '18.0', '19.0', '20.0', '21.0', '22.0', '23.0', '24.0', '25.0', '26.0', '27.0', '28.0', '29.0', '30.0'],
+    ['12.5', '13.5', '14.5', '15.5', '16.5', '17.5', '18.5', '19.5', '20.5', '21.5', '22.5', '23.5', '24.5', '25.5', '26.5', '27.5', '28.5', '29.5', '30.5'],
+    ['13.0', '14.0', '15.0', '16.0', '17.0', '18.0', '19.0', '20.0', '21.0', '22.0', '23.0', '24.0', '25.0', '26.0', '27.0', '28.0', '29.0', '30.0', '31.0'],
+    ['13.5', '14.5', '15.5', '16.5', '17.5', '18.5', '19.5', '20.5', '21.5', '22.5', '23.5', '24.5', '25.5', '26.5', '27.5', '28.5', '29.5', '30.5', '31.5'],
+    ['14.0', '15.0', '16.0', '17.0', '18.0', '19.0', '20.0', '21.0', '22.0', '23.0', '24.0', '25.0', '26.0', '27.0', '28.0', '29.0', '30.0', '31.0', '32.0'],
+    ['14.5', '15.5', '16.5', '17.5', '18.5', '19.5', '20.5', '21.5', '22.5', '23.5', '24.5', '25.5', '26.5', '27.5', '28.5', '29.5', '30.5', '31.5', '32.5']
+  ];
+
+  const visibilityIssues = [
+    { row: 1, col: 7, field: "DBH (Blue)", issue: "Faint blue ballpoint stroke partially cut by paper fold line" },
+    { row: 4, col: 12, field: "Height (Red)", issue: "Low-contrast red ink annotation slightly smudged" },
+    { row: 7, col: 3, field: "DBH (Blue)", issue: "Paper creased across numeral 8" },
+    { row: 8, col: 12, field: "DBH (Blue)", issue: "Faint handwriting requiring visual inspection" }
   ];
 
   const rows: GeminiRowExtraction[] = sampleValues.map((rowVals, rIdx) => {
     const rowNum = rIdx + 1;
     const cells: Record<string, string> = {};
+    const heightCells: Record<string, string> = {};
     const cellConf: Record<string, number> = {};
     const candidates: Record<string, CandidatePrediction[]> = {};
 
     headers.forEach((h, cIdx) => {
       const val = rowVals[cIdx] || '300';
+      const hVal = heightValues[rIdx]?.[cIdx] || '15.0';
       cells[h.key] = val;
+      heightCells[h.key] = hVal;
 
-      // Create a few realistic ambiguous cells with alternatives
-      if ((rIdx === 0 && cIdx === 2) || (rIdx === 2 && cIdx === 7)) {
-        cellConf[h.key] = 0.76;
+      // Realistic ambiguous cells
+      if ((rIdx === 0 && cIdx === 6) || (rIdx === 6 && cIdx === 2) || (rIdx === 7 && cIdx === 11)) {
+        cellConf[h.key] = 0.74;
         candidates[h.key] = [
-          { value: val, probability: 0.76, reason: 'Smudged stroke on digit 7' },
-          { value: '215', probability: 0.24, reason: 'Alternative reading if horizontal bar is faint' }
-        ];
-      } else if (rIdx === 1 && cIdx === 8) {
-        cellConf[h.key] = 0.72;
-        candidates[h.key] = [
-          { value: val, probability: 0.72, reason: 'Digit loop ambiguous between 3 and 2' },
-          { value: '395', probability: 0.28, reason: 'Loop closure could indicate 3' }
+          { value: val, probability: 0.74, reason: 'Faint ink on digit stroke' },
+          { value: `${parseInt(val) + 10}`, probability: 0.26, reason: 'Alternative loop reading' }
         ];
       } else {
-        cellConf[h.key] = 0.94 + Math.random() * 0.05;
+        cellConf[h.key] = 0.95;
       }
     });
 
@@ -483,21 +503,22 @@ export function generateLocalScan(title: string = 'KFS_Form_AGW-85-01_Kiamuriuki
       treeNumber: `Tree #${(rowNum - 1) * 19 + 1}`,
       speciesCode: 'EUC_SAL',
       dbhCm: cells['col_1'],
-      heightM: cells['col_2'],
+      heightM: heightCells['col_1'],
       healthStatus: 'Sound',
-      notes: rIdx === 0 ? 'Verified row 1 against original physical sheet' : '',
+      notes: rIdx === 0 ? 'Verified row 1 against Chuka physical sheet' : '',
       cells,
+      heightCells,
       cellConfidence: cellConf,
       candidateValues: candidates,
       confidence: {
         treeNumber: 0.99,
         speciesCode: 0.98,
         dbhCm: cellConf['col_1'],
-        heightM: cellConf['col_2']
+        heightM: 0.95
       },
       flags: {
         dbhUncertain: (cellConf['col_1'] || 1.0) < 0.85,
-        heightUncertain: Object.values(cellConf).some((c) => c < 0.85)
+        heightUncertain: false
       },
       comments: [],
       isVerified: false
@@ -508,27 +529,27 @@ export function generateLocalScan(title: string = 'KFS_Form_AGW-85-01_Kiamuriuki
     title: 'KENYA FOREST SERVICE - STUMPAGE APPRAISAL FORM AGW-85-01',
     documentType: 'forestry_inventory',
     institution: 'Kenya Forest Service (KFS)',
-    subHeader: 'Field Tree Measurements (DBH Matrix)',
+    subHeader: 'Field Tree Measurements (Chuka Forest Station)',
     personName: 'Faith',
     idNumber: 'AGW-85-01',
     plotCode: 'Kiamuriuki 1(k)',
     forestStation: 'Chuka Forest Station',
     observerName: 'Faith',
-    summary: 'Stumpage appraisal form recording 190 tree diameter measurements across a 10x19 matrix.',
+    summary: 'Stumpage appraisal form recording 190 tree diameter (blue) and height (red) measurements across a 10x19 matrix.',
     metadataFields: [
       { label: 'Forest Station', value: 'Chuka Forest Station' },
       { label: 'Compartment', value: 'Kiamuriuki 1(k)' },
       { label: 'Species', value: 'Eucalyptus saligna' },
       { label: 'Planting Year', value: '1982' },
       { label: 'Age', value: '62' },
-      { label: 'Date', value: '24/09/2026' },
       { label: 'Measuring Officer', value: 'Faith' },
       { label: 'Portion', value: 'Whole' },
       { label: 'Operation', value: 'Clear Fell' },
       { label: 'Classification', value: 'Timber' },
-      { label: 'Number of Trees', value: '190' }
+      { label: 'Number of Trees', value: '1,023' }
     ],
     tableHeaders: headers,
+    visibilityIssues,
     rows
   };
 }

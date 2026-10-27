@@ -43,6 +43,15 @@ export default defineConfig(({ mode }) => {
   };
   return {
     plugins: [react(), ocrProxy(env)],
-    server: { port: 5173 }
+    server: { 
+      host: '0.0.0.0',
+      port: 3000,
+      strictPort: true
+    },
+    preview: {
+      host: '0.0.0.0',
+      port: 3000,
+      strictPort: true
+    }
   };
 });
