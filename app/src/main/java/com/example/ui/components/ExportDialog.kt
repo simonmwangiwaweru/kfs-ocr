@@ -128,30 +128,11 @@ fun ExportDialog(
                     }
                 }
 
-                // Structure Note Reminder
-                Surface(
-                    color = SurfaceSubtle,
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Box(modifier = Modifier.size(6.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color(0xFF2563EB)))
-                        Text(text = "DBH (Blue)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1D4ED8))
-                        Text(text = "then 2 blank lines then", fontSize = 10.sp, color = TextMuted)
-                        Box(modifier = Modifier.size(6.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color(0xFFDC2626)))
-                        Text(text = "Height (Red)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFB91C1C))
-                    }
-                }
-
                 // Document Preview Box
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(230.dp)
+                        .height(240.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(SurfaceSubtle)
                         .border(1.dp, HairlineBorderSubtle, RoundedCornerShape(12.dp))
@@ -162,18 +143,8 @@ fun ExportDialog(
 
                     val previewText = when (selectedFormat) {
                         "NOTEPAD" -> notepadContent.ifBlank { csvContent }
-                        "WORD" -> {
-                            "=== MICROSOFT WORD DOCUMENT (.doc / .docx) ===\r\n" +
-                            "Document: Form AGW-85-01 Landscape Table Report\r\n" +
-                            "Structure: Section 1 (DBH - Blue) followed by 2 lines of space, followed by Section 2 (Height - Red)\r\n\r\n" +
-                            (notepadContent.ifBlank { csvContent })
-                        }
-                        "EXCEL" -> {
-                            "=== MICROSOFT EXCEL WORKBOOK (.xlsx) ===\r\n" +
-                            "Sheet: AGW-85-01_Field_Tally\r\n" +
-                            "Layout: Block A (Rows 1-10: DBH Blue) -> Blank Row 11 & 12 -> Block B (Rows 13-22: Height Red)\r\n\r\n" +
-                            csvContent
-                        }
+                        "WORD" -> notepadContent.ifBlank { csvContent }
+                        "EXCEL" -> csvContent
                         else -> csvContent
                     }
 
@@ -203,7 +174,7 @@ fun ExportDialog(
                             }
                             val clip = ClipData.newPlainText("KFS Inventory Data", contentToCopy)
                             clipboard.setPrimaryClip(clip)
-                            Toast.makeText(context, "Copied $selectedFormat formatted data with 2-line spacing", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Copied $selectedFormat formatted data to clipboard", Toast.LENGTH_SHORT).show()
                         },
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
