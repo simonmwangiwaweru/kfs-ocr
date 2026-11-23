@@ -113,7 +113,7 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(9999.dp)
                 ) {
                     Text(
-                        text = "FORM AGW-85-01",
+                        text = if (isOffline) "OFFLINE" else "READY",
                         fontSize = 9.sp,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,

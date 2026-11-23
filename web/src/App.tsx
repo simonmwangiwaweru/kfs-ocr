@@ -47,6 +47,7 @@ export default function App() {
   const [geminiKeyInput, setGeminiKeyInput] = useState('');
   const [visionKeyInput, setVisionKeyInput] = useState('');
   const [showKeyText, setShowKeyText] = useState(false);
+  const [showBackupKeyPanel, setShowBackupKeyPanel] = useState(false);
   const [keyTestStatus, setKeyTestStatus] = useState<'idle' | 'testing' | 'valid' | 'invalid'>('idle');
   const [autoSyncMobile, setAutoSyncMobile] = useState(true);
 
@@ -97,7 +98,10 @@ export default function App() {
   const handleSaveKeys = () => {
     saveStoredGeminiKey(geminiKeyInput);
     saveStoredCloudVisionKey(visionKeyInput);
-    showToast('API Configuration saved successfully!');
+    if (geminiKeyInput.trim()) {
+      setShowBackupKeyPanel(false);
+    }
+    showToast('API key saved for this browser');
   };
 
   const handleTestKey = async () => {
@@ -1514,206 +1518,199 @@ export default function App() {
         {/* ==================================================== */}
         {/* VIEW 4: SETTINGS & KEYS (From code__9__0e005024.html)  */}
         {/* ==================================================== */}
+        {/* ==================================================== */}
+        {/* VIEW 4: SETTINGS (Clean & Concise)                   */}
+        {/* ==================================================== */}
         {activeTab === 'settings' && (
-          <div className="flex-1 overflow-y-auto no-scrollbar px-4 pt-3 pb-24 space-y-3.5">
-            {/* Hardware Status Banner */}
-            <div className="flex items-center justify-between px-3.5 py-2 bg-white rounded-xl border border-[#bec9bf]/40 shadow-xs">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#1f7a4d] animate-pulse"></span>
-                <span className="font-mono text-[11px] text-[#191c1c] font-semibold">Optical Scanner Module</span>
+          <div className="flex-1 w-full max-w-xl mx-auto overflow-y-auto no-scrollbar pt-2 pb-28 space-y-4">
+            {/* CARD 1: OCR & API Connection */}
+            <section className="tactile-card bg-white rounded-2xl p-4 shadow-sm border border-[#bec9bf]/30 space-y-3.5">
+              <div className="flex items-center justify-between pb-2.5 border-b border-[#eceeed]">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-[#e6f4ea] flex items-center justify-center text-[#1f7a4d] shrink-0">
+                    <span className="material-symbols-outlined text-[19px]">document_scanner</span>
+                  </div>
+                  <h2 className="font-headline text-[15.5px] font-bold text-[#191c1c]">OCR &amp; API Connection</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOcrStatus(null);
+                    checkOcrServerStatus().then(setOcrStatus);
+                  }}
+                  className="p-1.5 rounded-lg border border-[#bec9bf]/60 bg-white text-[#3f4941] hover:text-[#1f7a4d] cursor-pointer"
+                  title="Refresh server status"
+                  aria-label="Refresh OCR server status"
+                >
+                  <span className="material-symbols-outlined text-[16px]">refresh</span>
+                </button>
               </div>
-              <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#bceacf] text-[#416b55] font-bold">
-                Encrypted Node
-              </span>
-            </div>
 
-            {/* CARD 1: Forest Station Biometric Calibration */}
-            <section className="tactile-card bg-white rounded-2xl p-4 shadow-sm border border-[#bec9bf]/30">
-              <div className="flex items-start gap-2.5 pb-2.5 border-b border-[#bec9bf]/30">
-                <div className="w-8 h-8 rounded-lg bg-[#bceacf]/60 flex items-center justify-center text-[#1f7a4d] shrink-0">
-                  <span className="material-symbols-outlined text-[19px]">forest</span>
-                </div>
-                <div>
-                  <h2 className="font-headline text-[16px] leading-5 font-bold text-[#191c1c]">Forest Station Parameters</h2>
-                  <p className="font-mono text-[11px] text-[#3f4941] leading-4 pt-0.5">Biometric calibration & appraisal standards</p>
-                </div>
-              </div>
-
-              <div className="mt-3.5 space-y-2.5">
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="p-2.5 bg-[#f2f4f3] rounded-xl border border-[#bec9bf]/40">
-                    <span className="font-mono text-[10px] text-[#6f7a71] uppercase tracking-wider block">Standard Form</span>
-                    <span className="font-headline text-[13px] font-bold text-[#191c1c] block mt-0.5">KFS Form AGW-85-01</span>
-                  </div>
-                  <div className="p-2.5 bg-[#f2f4f3] rounded-xl border border-[#bec9bf]/40">
-                    <span className="font-mono text-[10px] text-[#6f7a71] uppercase tracking-wider block">Active Station</span>
-                    <span className="font-headline text-[13px] font-bold text-[#191c1c] block mt-0.5 truncate">{activeDoc?.forestStation || 'Auto-detected'}</span>
-                  </div>
-                  <div className="p-2.5 bg-[#f2f4f3] rounded-xl border border-[#bec9bf]/40">
-                    <span className="font-mono text-[10px] text-[#6f7a71] uppercase tracking-wider block">Active Compartment</span>
-                    <span className="font-headline text-[13px] font-bold text-[#191c1c] block mt-0.5 truncate">{activeDoc?.plotCode || 'Auto-detected'}</span>
-                  </div>
-                  <div className="p-2.5 bg-[#f2f4f3] rounded-xl border border-[#bec9bf]/40">
-                    <span className="font-mono text-[10px] text-[#6f7a71] uppercase tracking-wider block">Grid Specification</span>
-                    <span className="font-headline text-[13px] font-bold text-[#191c1c] block mt-0.5">10 × 19 (190 Stems)</span>
+              {/* Live Status Row */}
+              <div className={`rounded-xl p-3 flex items-center justify-between gap-2 border ${
+                ocrStatus?.serverKeyConfigured || Boolean(getStoredGeminiKey())
+                  ? 'bg-[#f4f8f5] border-[#cde0d4]'
+                  : ocrStatus && !ocrStatus.reachable
+                    ? 'bg-red-50 border-red-200'
+                    : 'bg-amber-50 border-amber-200'
+              }`}>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                    ocrStatus?.serverKeyConfigured || Boolean(getStoredGeminiKey())
+                      ? 'bg-[#1f7a4d]'
+                      : ocrStatus && !ocrStatus.reachable
+                        ? 'bg-red-500'
+                        : 'bg-amber-500'
+                  }`}></span>
+                  <div className="min-w-0">
+                    <p className="font-mono text-[11.5px] font-bold text-[#191c1c]">OCR Service</p>
+                    <p className="font-mono text-[10.5px] text-[#3f4941] mt-0.5">
+                      {ocrStatus?.serverKeyConfigured
+                        ? 'Server key active (permanent)'
+                        : getStoredGeminiKey()
+                          ? 'Saved device key active'
+                          : ocrStatus === null
+                            ? 'Checking connection...'
+                            : !ocrStatus.reachable
+                              ? 'Endpoint /api/ocr missing (redeploy latest commit)'
+                              : 'Add GEMINI_API_KEY in Vercel or below'}
+                    </p>
                   </div>
                 </div>
-
-                {/* Live Server & API Key Status */}
-                <div className={`rounded-xl p-3 flex items-center justify-between gap-2 border ${
-                  ocrStatus?.serverKeyConfigured || geminiKeyInput.trim()
-                    ? 'bg-[#f2f4f3]/80 border-[#bec9bf]/35'
+                <span className={`font-mono text-[10px] font-bold px-2.5 py-1 rounded-full border shrink-0 ${
+                  ocrStatus?.serverKeyConfigured || Boolean(getStoredGeminiKey())
+                    ? 'bg-[#dcfce7] text-[#166534] border-[#bbf7d0]'
                     : ocrStatus && !ocrStatus.reachable
-                      ? 'bg-red-50 border-red-200'
-                      : 'bg-amber-50 border-amber-200'
+                      ? 'bg-red-100 text-red-800 border-red-300'
+                      : 'bg-amber-100 text-amber-800 border-amber-300'
                 }`}>
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="relative flex h-2.5 w-2.5 shrink-0">
-                      <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
-                        ocrStatus?.serverKeyConfigured || geminiKeyInput.trim()
-                          ? 'bg-[#1f7a4d]'
-                          : ocrStatus && !ocrStatus.reachable
-                            ? 'bg-red-500'
-                            : 'bg-amber-500'
-                      }`}></span>
-                    </span>
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-mono text-[11px] font-bold text-[#191c1c] leading-tight">
-                        Live Gemini Vision OCR (/api/ocr)
-                      </span>
-                      <span className="font-mono text-[10px] text-[#3f4941] leading-snug mt-0.5">
-                        {ocrStatus?.serverKeyConfigured
-                          ? 'Vercel Server GEMINI_API_KEY Active'
-                          : geminiKeyInput.trim()
-                            ? 'Using Personal Gemini API Key (Local)'
-                            : ocrStatus === null
-                              ? 'Checking server status...'
-                              : !ocrStatus.reachable
-                                ? '/api/ocr returned 404 (not deployed on this host)'
-                                : '/api/ocr reachable, but server GEMINI_API_KEY is missing'}
-                      </span>
+                  {ocrStatus?.serverKeyConfigured || Boolean(getStoredGeminiKey())
+                    ? 'READY'
+                    : ocrStatus && !ocrStatus.reachable
+                      ? 'OFFLINE'
+                      : 'KEY NEEDED'}
+                </span>
+              </div>
+
+              {/* Collapsible Personal / Backup Key */}
+              <div className="pt-1 border-t border-[#eceeed]">
+                <button
+                  type="button"
+                  onClick={() => setShowBackupKeyPanel(!showBackupKeyPanel)}
+                  className="w-full py-1.5 flex items-center justify-between text-left cursor-pointer"
+                >
+                  <span className="font-mono text-[11.5px] font-bold text-[#191c1c]">
+                    {ocrStatus?.serverKeyConfigured ? 'Backup API Key (Optional)' : 'Personal API Key'}
+                  </span>
+                  <span className="material-symbols-outlined text-[18px] text-[#6f7a71]">
+                    {showBackupKeyPanel || (!ocrStatus?.serverKeyConfigured && !getStoredGeminiKey()) ? 'expand_less' : 'expand_more'}
+                  </span>
+                </button>
+
+                {(showBackupKeyPanel || (!ocrStatus?.serverKeyConfigured && !getStoredGeminiKey())) && (
+                  <div className="pt-2 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-[10.5px] text-[#6f7a71]">Saved permanently in this browser</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowKeyText(!showKeyText)}
+                        className="font-mono text-[10.5px] text-[#1f7a4d] font-bold cursor-pointer"
+                      >
+                        {showKeyText ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
+                    <input
+                      type={showKeyText ? 'text' : 'password'}
+                      value={geminiKeyInput}
+                      onChange={(e) => {
+                        setGeminiKeyInput(e.target.value);
+                        setKeyTestStatus('idle');
+                      }}
+                      placeholder="Paste Gemini API key (AIza...)"
+                      className="w-full bg-[#f4f6f5] border border-[#bec9bf]/60 rounded-xl px-3 py-2 font-mono text-[12px] text-[#191c1c] focus:outline-none focus:ring-2 focus:ring-[#1f7a4d]"
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleTestKey}
+                        disabled={keyTestStatus === 'testing'}
+                        className="px-3 py-1.5 rounded-xl border border-[#bec9bf] bg-white font-mono text-[11px] font-bold text-[#191c1c] hover:bg-[#f8faf9] cursor-pointer"
+                      >
+                        {keyTestStatus === 'testing' ? 'Testing...' : 'Test'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveKeys}
+                        className="px-3.5 py-1.5 rounded-xl bg-[#1f7a4d] text-white font-mono text-[11px] font-bold hover:bg-[#17613c] cursor-pointer"
+                      >
+                        Save Key
+                      </button>
+                      {getStoredGeminiKey() && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            clearStoredGeminiKey();
+                            setGeminiKeyInput('');
+                            setKeyTestStatus('idle');
+                            showToast('Browser key removed');
+                          }}
+                          className="px-2.5 py-1.5 rounded-xl text-red-600 font-mono text-[11px] font-bold hover:bg-red-50 cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      )}
+                      {keyTestStatus === 'valid' && (
+                        <span className="font-mono text-[10.5px] font-bold text-emerald-700">Valid</span>
+                      )}
+                      {keyTestStatus === 'invalid' && (
+                        <span className="font-mono text-[10.5px] font-bold text-red-600">Invalid</span>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOcrStatus(null);
-                        checkOcrServerStatus().then(setOcrStatus);
-                      }}
-                      className="p-1.5 rounded-lg border border-[#bec9bf]/60 bg-white text-[#3f4941] hover:text-[#1f7a4d] cursor-pointer"
-                      title="Refresh /api/ocr status"
-                      aria-label="Refresh OCR server status"
-                    >
-                      <span className="material-symbols-outlined text-[15px]">refresh</span>
-                    </button>
-                    <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                      ocrStatus?.serverKeyConfigured || geminiKeyInput.trim()
-                        ? 'bg-[#dcfce7] text-[#166534] border-[#bbf7d0]'
-                        : ocrStatus && !ocrStatus.reachable
-                          ? 'bg-red-100 text-red-800 border-red-300'
-                          : 'bg-amber-100 text-amber-800 border-amber-300'
-                    }`}>
-                      {ocrStatus?.serverKeyConfigured || geminiKeyInput.trim()
-                        ? 'READY'
-                        : ocrStatus && !ocrStatus.reachable
-                          ? 'NO /api/ocr'
-                          : 'SETUP NEEDED'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Optional API Key Override for Local / Direct Testing */}
-                <div className="pt-2 space-y-2 border-t border-[#bec9bf]/30">
-                  <div className="flex items-center justify-between">
-                    <label className="font-mono text-[11px] font-bold text-[#191c1c]">
-                      Gemini API Key (Optional Browser Override)
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setShowKeyText(!showKeyText)}
-                      className="font-mono text-[10px] text-[#1f7a4d] font-semibold cursor-pointer"
-                    >
-                      {showKeyText ? 'Hide' : 'Show'}
-                    </button>
-                  </div>
-                  <input
-                    type={showKeyText ? 'text' : 'password'}
-                    value={geminiKeyInput}
-                    onChange={(e) => {
-                      setGeminiKeyInput(e.target.value);
-                      setKeyTestStatus('idle');
-                    }}
-                    placeholder={ocrStatus?.serverKeyConfigured ? 'Optional (Server key already active)' : 'Paste AIza... key if not set on Vercel'}
-                    className="w-full bg-[#f2f4f3] border border-[#bec9bf]/60 rounded-xl px-3 py-2 font-mono text-[12px] text-[#191c1c] focus:outline-none focus:ring-2 focus:ring-[#1f7a4d]"
-                  />
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleTestKey}
-                      disabled={keyTestStatus === 'testing'}
-                      className="px-3 py-1.5 rounded-xl border border-[#bec9bf] bg-white font-mono text-[11px] font-bold text-[#191c1c] hover:bg-[#f8faf9] cursor-pointer"
-                    >
-                      {keyTestStatus === 'testing' ? 'Testing...' : 'Test Key'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSaveKeys}
-                      className="px-3 py-1.5 rounded-xl bg-[#1f7a4d] text-white font-mono text-[11px] font-bold hover:bg-[#17613c] cursor-pointer"
-                    >
-                      Save Configuration
-                    </button>
-                    {keyTestStatus === 'valid' && (
-                      <span className="font-mono text-[10.5px] font-bold text-emerald-700">Valid Key</span>
-                    )}
-                    {keyTestStatus === 'invalid' && (
-                      <span className="font-mono text-[10.5px] font-bold text-red-600">Invalid Key</span>
-                    )}
-                  </div>
-                </div>
+                )}
               </div>
             </section>
 
-            {/* CARD 2: Offline & Sync Preferences */}
-            <section className="tactile-card bg-white rounded-2xl p-4">
-              <div className="flex items-start gap-2.5 pb-2.5 border-b border-[#bec9bf]/30">
-                <div className="w-8 h-8 rounded-lg bg-[#bceacf]/60 flex items-center justify-center text-[#1f7a4d] shrink-0">
-                  <span className="material-symbols-outlined text-[19px]">sync_saved_locally</span>
+            {/* CARD 2: Storage & Sync */}
+            <section className="tactile-card bg-white rounded-2xl p-4 shadow-sm border border-[#bec9bf]/30 space-y-3">
+              <div className="flex items-center gap-2.5 pb-2.5 border-b border-[#eceeed]">
+                <div className="w-8 h-8 rounded-lg bg-[#e6f4ea] flex items-center justify-center text-[#1f7a4d] shrink-0">
+                  <span className="material-symbols-outlined text-[19px]">folder_open</span>
                 </div>
-                <div>
-                  <h2 className="font-headline text-[16px] leading-5 font-bold text-[#191c1c]">Field Data & Synchronization</h2>
-                  <p className="font-mono text-[11px] text-[#3f4941] leading-4 pt-0.5">Appraisal queuing & cache storage</p>
-                </div>
+                <h2 className="font-headline text-[15.5px] font-bold text-[#191c1c]">Storage &amp; Sync</h2>
               </div>
 
-              <div className="mt-3.5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-mono text-[11px] font-bold text-[#191c1c] leading-tight">Auto-sync over Mobile Data</p>
-                    <p className="font-mono text-[10px] text-[#3f4941]">Sync when connected on Safaricom/Airtel</p>
-                  </div>
-                  <button 
-                    type="button"
-                    onClick={() => setAutoSyncMobile(!autoSyncMobile)}
-                    className={`w-11 h-6 rounded-full p-0.5 flex items-center transition-colors shadow-inner ${
-                      autoSyncMobile ? 'bg-[#1f7a4d] justify-end' : 'bg-slate-300 justify-start'
-                    }`}
-                  >
-                    <span className="w-5 h-5 rounded-full bg-white shadow-md"></span>
-                  </button>
+              <div className="flex items-center justify-between py-0.5">
+                <div>
+                  <p className="font-mono text-[11.5px] font-bold text-[#191c1c]">Auto-Sync Scans</p>
+                  <p className="font-mono text-[10.5px] text-[#6f7a71]">Keep records synced when online</p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setAutoSyncMobile(!autoSyncMobile)}
+                  className={`w-11 h-6 rounded-full p-0.5 flex items-center transition-colors shadow-inner cursor-pointer ${
+                    autoSyncMobile ? 'bg-[#1f7a4d] justify-end' : 'bg-slate-300 justify-start'
+                  }`}
+                >
+                  <span className="w-5 h-5 rounded-full bg-white shadow-md"></span>
+                </button>
+              </div>
 
-                <div className="p-2.5 bg-[#f2f4f3] rounded-xl border border-[#bec9bf]/40 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-[#e1e3e2] text-[#3f4941] flex items-center justify-center">
-                      <span className="material-symbols-outlined text-[18px]">database</span>
-                    </div>
-                    <div>
-                      <p className="font-mono text-[11px] font-bold text-[#191c1c]">Device Storage</p>
-                      <p className="font-mono text-[10px] text-[#3f4941]">{documents.length} forms cached in IndexedDB</p>
-                    </div>
+              <div className="p-3 bg-[#f4f6f5] rounded-xl border border-[#bec9bf]/40 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <span className="material-symbols-outlined text-[18px] text-[#3f4941]">inventory_2</span>
+                  <div>
+                    <p className="font-mono text-[11.5px] font-bold text-[#191c1c]">Saved Scans</p>
+                    <p className="font-mono text-[10.5px] text-[#6f7a71]">{documents.length} documents stored</p>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('archive')}
+                  className="px-2.5 py-1 rounded-lg bg-white border border-[#bec9bf]/60 font-mono text-[10.5px] font-bold text-[#1f7a4d] hover:bg-[#e6f4ea] cursor-pointer"
+                >
+                  Open Archive
+                </button>
               </div>
             </section>
           </div>
