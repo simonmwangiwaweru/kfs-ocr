@@ -43,8 +43,8 @@ fun ScanScreen(
     // Animated laser sweep animation (like Stitch code__7__0f318414.html)
     val infiniteTransition = rememberInfiniteTransition(label = "laser")
     val laserYRatio by infiniteTransition.animateFloat(
-        initialValue = 0.08f,
-        targetValue = 0.92f,
+        initialValue = 0.20f,
+        targetValue = 0.76f,
         animationSpec = infiniteRepeatable(
             animation = tween(2200, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
@@ -266,11 +266,11 @@ fun ScanScreen(
                         .background(BrandEmerald.copy(alpha = 0.85f))
                 )
 
-                // Top Telemetry Header Readout
+                // Top Telemetry Header Readout (clear of corner bracket)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .padding(horizontal = 42.dp, vertical = 14.dp)
                         .align(Alignment.TopCenter),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically

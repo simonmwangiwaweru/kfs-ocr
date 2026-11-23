@@ -50,10 +50,10 @@
 
 /* Animated laser sweep in camera viewfinder */
 @keyframes scanSweep {
-  0% { top: 6%; opacity: 0.2; }
+  0% { top: 20%; opacity: 0.35; }
   15% { opacity: 0.95; }
   85% { opacity: 0.95; }
-  100% { top: 92%; opacity: 0.2; }
+  100% { top: 76%; opacity: 0.35; }
 }
 
 .laser-beam {

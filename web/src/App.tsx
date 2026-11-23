@@ -641,16 +641,14 @@ export default function App() {
     <div className="bg-[#f0f3f1] text-[#191c1c] antialiased min-h-screen flex flex-col font-sans select-none">
       {/* Global Top App Bar - Responsive Header */}
       <header className="w-full bg-[#f8faf9] text-[#006038] shadow-xs z-30 shrink-0 border-b border-[#bec9bf]/20">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="flex flex-col">
-              <div className="flex items-center gap-1.5">
-                <span className="font-headline text-[18px] font-extrabold text-[#191c1c] tracking-tight">KFS</span>
-                <span className="font-headline text-[18px] font-extrabold text-[#1f7a4d] tracking-tight">Scan</span>
-              </div>
-              <span className="font-mono text-[10.5px] text-[#556057] font-semibold">
-                Field Appraisal &amp; Inventory Digitization
-              </span>
+        <div className="max-w-6xl mx-auto px-4 py-2.5 flex justify-between items-center">
+          {/* Balancing left spacer on mobile so KFS Scan stays centered like Android preview */}
+          <div className="w-10 md:hidden" aria-hidden="true" />
+
+          <div className="flex items-center justify-center md:justify-start">
+            <div className="flex items-center gap-1.5">
+              <span className="font-headline text-[18px] font-extrabold text-[#191c1c] tracking-tight">KFS</span>
+              <span className="font-headline text-[18px] font-extrabold text-[#1f7a4d] tracking-tight">Scan</span>
             </div>
           </div>
 
@@ -763,8 +761,8 @@ export default function App() {
             </div>
 
             {/* Central Optical Viewfinder Card (Pure White, Crisp Dark Outline) */}
-            <div className="relative bg-white rounded-3xl p-3 shadow-sm border border-[#191c1c] overflow-hidden">
-              <div className="relative w-full h-[270px] sm:h-[340px] rounded-2xl overflow-hidden bg-white flex items-center justify-center">
+            <div className="relative bg-white rounded-3xl p-2.5 shadow-sm border border-[#191c1c] overflow-hidden">
+              <div className="relative w-full h-[235px] sm:h-[310px] rounded-2xl overflow-hidden bg-white flex items-center justify-center">
                 {scanningPreviewUrl ? (
                   <img
                     src={scanningPreviewUrl}
@@ -776,11 +774,11 @@ export default function App() {
                 )}
 
                 {/* Framing & Targeting Corner Brackets */}
-                <div className="absolute inset-3 border border-[#191c1c]/35 rounded-xl pointer-events-none"></div>
-                <div className="absolute top-5 left-5 w-5 h-5 border-t-[3px] border-l-[3px] border-[#1f7a4d] rounded-tl pointer-events-none"></div>
-                <div className="absolute top-5 right-5 w-5 h-5 border-t-[3px] border-r-[3px] border-[#1f7a4d] rounded-tr pointer-events-none"></div>
-                <div className="absolute bottom-5 left-5 w-5 h-5 border-b-[3px] border-l-[3px] border-[#1f7a4d] rounded-bl pointer-events-none"></div>
-                <div className="absolute bottom-5 right-5 w-5 h-5 border-b-[3px] border-r-[3px] border-[#1f7a4d] rounded-br pointer-events-none"></div>
+                <div className="absolute inset-2 border border-[#191c1c]/30 rounded-xl pointer-events-none"></div>
+                <div className="absolute top-4 left-4 w-5 h-5 border-t-[3px] border-l-[3px] border-[#1f7a4d] rounded-tl pointer-events-none"></div>
+                <div className="absolute top-4 right-4 w-5 h-5 border-t-[3px] border-r-[3px] border-[#1f7a4d] rounded-tr pointer-events-none"></div>
+                <div className="absolute bottom-4 left-4 w-5 h-5 border-b-[3px] border-l-[3px] border-[#1f7a4d] rounded-bl pointer-events-none"></div>
+                <div className="absolute bottom-4 right-4 w-5 h-5 border-b-[3px] border-r-[3px] border-[#1f7a4d] rounded-br pointer-events-none"></div>
 
                 {/* Optical Crosshair */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -795,19 +793,19 @@ export default function App() {
                   <span className="absolute right-0 -top-1 w-2 h-2.5 bg-[#10b981] rounded-full"></span>
                 </div>
 
-                {/* Top Telemetry */}
-                <div className="absolute top-3 left-4 right-4 flex justify-end items-center pointer-events-none z-20">
-                  <div className="flex items-center gap-1.5 bg-[#f4f8f5] px-2.5 py-1 rounded-md border border-[#d2e3d8] text-[#1f7a4d] font-mono text-[10.5px] font-bold">
-                    <span className="w-2 h-2 rounded-full bg-[#1f7a4d] animate-pulse"></span>
+                {/* Top Telemetry (clear of corner bracket) */}
+                <div className="absolute top-4 left-11 right-11 flex justify-end items-center pointer-events-none z-20">
+                  <div className="flex items-center gap-1.5 bg-[#f4f8f5] px-2.5 py-0.5 rounded-md border border-[#d2e3d8] text-[#1f7a4d] font-mono text-[10px] font-bold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#1f7a4d] animate-pulse"></span>
                     <span>AUTO-FOCUS</span>
                   </div>
                 </div>
 
                 {/* Bottom Guidance Chip */}
-                <div className="absolute bottom-3 left-4 right-4 flex justify-center pointer-events-none z-20">
-                  <div className="bg-[#f4f8f5] border border-[#d2e3d8] px-3.5 py-1.5 rounded-full flex items-center gap-2 shadow-xs">
-                    <span className="material-symbols-outlined text-[#1f7a4d] text-[15px]">crop_free</span>
-                    <span className="font-mono text-[10.5px] text-[#1f7a4d] font-semibold tracking-tight">
+                <div className="absolute bottom-4 left-11 right-11 flex justify-center pointer-events-none z-20">
+                  <div className="bg-[#f4f8f5] border border-[#d2e3d8] px-3 py-1 rounded-full flex items-center gap-1.5 shadow-xs">
+                    <span className="material-symbols-outlined text-[#1f7a4d] text-[14px]">crop_free</span>
+                    <span className="font-mono text-[10px] text-[#1f7a4d] font-semibold tracking-tight truncate">
                       {isProcessing ? processingStep : 'Align document within frame'}
                     </span>
                   </div>
