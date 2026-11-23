@@ -98,30 +98,40 @@ Return ONLY valid JSON matching this structure (transcribe real values from the 
 }
 `;
 
+function findEnvCaseInsensitive(targetNames, env = {}) {
+  const sources = [env, process.env];
+  const lowerTargets = targetNames.map((n) => n.toLowerCase());
+
+  for (const targetLower of lowerTargets) {
+    for (const src of sources) {
+      if (!src || typeof src !== 'object') continue;
+      for (const [k, v] of Object.entries(src)) {
+        if (
+          k.toLowerCase() === targetLower &&
+          typeof v === 'string' &&
+          v.trim() &&
+          v.trim() !== 'MY_GEMINI_API_KEY'
+        ) {
+          return v.trim();
+        }
+      }
+    }
+  }
+  return '';
+}
+
 function resolveKeys(body = {}, env = {}) {
-  const candidates = [
-    env.GEMINI_API_KEY,
-    process.env.GEMINI_API_KEY,
-    env.GOOGLE_API_KEY,
-    process.env.GOOGLE_API_KEY,
-    env.VITE_GEMINI_API_KEY,
-    process.env.VITE_GEMINI_API_KEY
-  ];
-  const serverKey = candidates.find(
-    (k) => typeof k === 'string' && k.trim() && k.trim() !== 'MY_GEMINI_API_KEY'
-  )?.trim() || '';
+  const serverKey = findEnvCaseInsensitive(
+    ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'VITE_GEMINI_API_KEY'],
+    env
+  );
 
   const clientKey = typeof body.clientApiKey === 'string' ? body.clientApiKey.trim() : '';
 
-  const visionCandidates = [
-    env.GOOGLE_VISION_API_KEY,
-    process.env.GOOGLE_VISION_API_KEY,
-    env.VITE_GOOGLE_VISION_KEY,
-    process.env.VITE_GOOGLE_VISION_KEY
-  ];
-  const serverVisionKey = visionCandidates.find(
-    (k) => typeof k === 'string' && k.trim()
-  )?.trim() || '';
+  const serverVisionKey = findEnvCaseInsensitive(
+    ['GOOGLE_VISION_API_KEY', 'VITE_GOOGLE_VISION_KEY'],
+    env
+  );
   const clientVisionKey = typeof body.clientVisionKey === 'string' ? body.clientVisionKey.trim() : '';
 
   return {
