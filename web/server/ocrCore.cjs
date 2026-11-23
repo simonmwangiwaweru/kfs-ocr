@@ -337,63 +337,130 @@ async function handleOcr(body = {}, env = {}) {
     }
   };
 
-  const models = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.5-pro'];
+const PREFERRED_GEMINI_MODELS = [
+  'gemini-3-flash-preview',
+  'gemini-3.1-pro-preview',
+  'gemini-3.1-flash-lite-preview'
+];
+
+function scoreGeminiModel(name) {
+  const lower = name.toLowerCase();
+  if (/embedding|aqa|imagen|veo|tts|audio|robotics|computer-use|lyria|gemma/.test(lower)) {
+    return -1;
+  }
+  let score = 0;
+  if (/gemini-(4|3\.9|3\.8|3\.6|3\.5|3\.1|3)/.test(lower)) score += 100;
+  else if (/gemini-flash-latest|gemini-pro-latest/.test(lower)) score += 60;
+  else if (/gemini-2\.5/.test(lower)) score += 20;
+  if (lower.includes('flash')) score += 25;
+  if (lower.includes('pro')) score += 20;
+  if (lower.includes('lite')) score -= 5;
+  if (lower.includes('preview')) score += 2;
+  return score;
+}
+
+async function discoverFallbackModels(geminiKey, triedSet) {
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(geminiKey)}`
+    );
+    if (!res.ok) return [];
+    const data = await res.json().catch(() => ({}));
+    const list = Array.isArray(data?.models) ? data.models : [];
+    return list
+      .filter(
+        (m) =>
+          Array.isArray(m?.supportedGenerationMethods) &&
+          m.supportedGenerationMethods.includes('generateContent') &&
+          typeof m?.name === 'string'
+      )
+      .map((m) => m.name.replace(/^models\//, ''))
+      .filter((name) => !triedSet.has(name) && scoreGeminiModel(name) > 0)
+      .sort((a, b) => scoreGeminiModel(b) - scoreGeminiModel(a))
+      .slice(0, 3);
+  } catch {
+    return [];
+  }
+}
+
+async function tryGenerateWithModel(model, geminiKey, requestPayload) {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(geminiKey)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestPayload)
+    }
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const apiMsg = errorData?.error?.message || `Gemini API error ${response.status}: ${response.statusText}`;
+    const status = response.status === 400 || response.status === 401 || response.status === 403 || response.status === 429
+      ? response.status
+      : 502;
+    if (response.status === 400 && /api key/i.test(apiMsg)) {
+      return { fatal: { status: 401, json: { ok: false, code: 'INVALID_API_KEY', error: apiMsg } } };
+    }
+    if (response.status === 401 || response.status === 403) {
+      return { fatal: { status: response.status, json: { ok: false, code: 'AUTH_ERROR', error: apiMsg } } };
+    }
+    return { error: apiMsg, status };
+  }
+
+  const data = await response.json();
+  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!rawText) {
+    return { error: `Empty response received from ${model}.`, status: 502 };
+  }
+
+  const cleaned = rawText.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+  const parsed = JSON.parse(cleaned);
+  const formatted = formatExtractionResult(parsed);
+
+  return {
+    success: {
+      status: 200,
+      json: {
+        ok: true,
+        model,
+        result: formatted
+      }
+    }
+  };
+}
+
+  const triedModels = new Set();
   let lastErrorMsg = 'Failed to extract data with Gemini Vision.';
   let lastStatus = 502;
 
-  for (const model of models) {
+  for (const model of PREFERRED_GEMINI_MODELS) {
+    triedModels.add(model);
     try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(geminiKey)}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestPayload)
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const apiMsg = errorData?.error?.message || `Gemini API error ${response.status}: ${response.statusText}`;
-        lastErrorMsg = apiMsg;
-        lastStatus = response.status === 400 || response.status === 401 || response.status === 403 || response.status === 429
-          ? response.status
-          : 502;
-        // If key itself is invalid, do not keep retrying other models
-        if (response.status === 400 && /api key/i.test(apiMsg)) {
-          return {
-            status: 401,
-            json: { ok: false, code: 'INVALID_API_KEY', error: apiMsg }
-          };
-        }
-        if (response.status === 401 || response.status === 403) {
-          return {
-            status: response.status,
-            json: { ok: false, code: 'AUTH_ERROR', error: apiMsg }
-          };
-        }
-        continue;
+      const outcome = await tryGenerateWithModel(model, geminiKey, requestPayload);
+      if (outcome.fatal) return outcome.fatal;
+      if (outcome.success) return outcome.success;
+      if (outcome.error) {
+        lastErrorMsg = outcome.error;
+        lastStatus = outcome.status || 502;
       }
+    } catch (err) {
+      lastErrorMsg = err?.message || String(err);
+    }
+  }
 
-      const data = await response.json();
-      const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!rawText) {
-        lastErrorMsg = `Empty response received from ${model}.`;
-        continue;
+  // Dynamic fallback: query ListModels for whatever vision-capable models are enabled on this API key
+  const discoveredModels = await discoverFallbackModels(geminiKey, triedModels);
+  for (const model of discoveredModels) {
+    triedModels.add(model);
+    try {
+      const outcome = await tryGenerateWithModel(model, geminiKey, requestPayload);
+      if (outcome.fatal) return outcome.fatal;
+      if (outcome.success) return outcome.success;
+      if (outcome.error) {
+        lastErrorMsg = outcome.error;
+        lastStatus = outcome.status || 502;
       }
-
-      const cleaned = rawText.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
-      const parsed = JSON.parse(cleaned);
-      const formatted = formatExtractionResult(parsed);
-
-      return {
-        status: 200,
-        json: {
-          ok: true,
-          model,
-          result: formatted
-        }
-      };
     } catch (err) {
       lastErrorMsg = err?.message || String(err);
     }

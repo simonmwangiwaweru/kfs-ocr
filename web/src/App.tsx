@@ -10,6 +10,7 @@ import {
   saveStoredCloudVisionKey,
   testGeminiApiKey,
   checkOcrServerStatus,
+  prepareFileForOcr,
   type OcrServerStatus
 } from './gemini';
 
@@ -174,60 +175,56 @@ export default function App() {
     setScanError(null);
     setProcessingStep('Preparing document for live OCR...');
 
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const dataUrl = e.target?.result as string;
-      if (file.type.startsWith('image/')) {
-        setScanningPreviewUrl(dataUrl);
+    try {
+      const preparedDataUrl = await prepareFileForOcr(file, (step) => setProcessingStep(step));
+      if (preparedDataUrl.startsWith('data:image/')) {
+        setScanningPreviewUrl(preparedDataUrl);
       }
 
-      try {
-        const extraction = await extractWithGeminiVision(dataUrl, (step) => setProcessingStep(step));
+      const extraction = await extractWithGeminiVision(preparedDataUrl, (step) => setProcessingStep(step));
 
-        const newDoc: ScanRecord = {
-          id: `DOC-${Date.now()}`,
-          title: extraction.plotCode
-            ? `Stumpage Appraisal - ${extraction.plotCode}`
-            : (extraction.title || file.name.replace(/\.[^/.]+$/, '')),
-          documentType: extraction.documentType,
-          institution: extraction.institution,
-          subHeader: extraction.subHeader,
-          personName: extraction.personName,
-          idNumber: extraction.idNumber,
-          plotCode: extraction.plotCode,
-          forestStation: extraction.forestStation,
-          observerName: extraction.observerName,
-          summary: extraction.summary,
-          metadataFields: extraction.metadataFields,
-          tableHeaders: extraction.tableHeaders,
-          visibilityIssues: extraction.visibilityIssues || [],
-          date: Date.now(),
-          imageDataUrl: dataUrl,
-          fileName: file.name,
-          fileSizeBytes: file.size,
-          fileType: file.type,
-          syncStatus: isOffline ? 'SAVED_OFFLINE' : 'SYNCED',
-          isVerified: false,
-          rows: extraction.rows as any[]
-        };
+      const newDoc: ScanRecord = {
+        id: `DOC-${Date.now()}`,
+        title: extraction.plotCode
+          ? `Stumpage Appraisal - ${extraction.plotCode}`
+          : (extraction.title || file.name.replace(/\.[^/.]+$/, '')),
+        documentType: extraction.documentType,
+        institution: extraction.institution,
+        subHeader: extraction.subHeader,
+        personName: extraction.personName,
+        idNumber: extraction.idNumber,
+        plotCode: extraction.plotCode,
+        forestStation: extraction.forestStation,
+        observerName: extraction.observerName,
+        summary: extraction.summary,
+        metadataFields: extraction.metadataFields,
+        tableHeaders: extraction.tableHeaders,
+        visibilityIssues: extraction.visibilityIssues || [],
+        date: Date.now(),
+        imageDataUrl: preparedDataUrl,
+        fileName: file.name,
+        fileSizeBytes: file.size,
+        fileType: file.type,
+        syncStatus: isOffline ? 'SAVED_OFFLINE' : 'SYNCED',
+        isVerified: false,
+        rows: extraction.rows as any[]
+      };
 
-        await db.scans.put(newDoc);
-        setDocuments(prev => [newDoc, ...prev]);
-        setActiveDoc(newDoc);
-        setActiveTab('review');
-        showToast('Document scanned & transcribed into 10×19 matrix!');
-      } catch (err: any) {
-        console.error('OCR Extraction error:', err);
-        const msg = String(err?.message || 'OCR failed. Check your Gemini API key or document clarity.');
-        setScanError(msg);
-        showToast(msg);
-      } finally {
-        setIsProcessing(false);
-        setProcessingStep('');
-        setScanningPreviewUrl(null);
-      }
-    };
-    reader.readAsDataURL(file);
+      await db.scans.put(newDoc);
+      setDocuments(prev => [newDoc, ...prev]);
+      setActiveDoc(newDoc);
+      setActiveTab('review');
+      showToast('Document scanned & transcribed into 10×19 matrix!');
+    } catch (err: any) {
+      console.error('OCR Extraction error:', err);
+      const msg = String(err?.message || 'OCR failed. Check your Gemini API key or document clarity.');
+      setScanError(msg);
+      showToast(msg);
+    } finally {
+      setIsProcessing(false);
+      setProcessingStep('');
+      setScanningPreviewUrl(null);
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -984,13 +981,13 @@ export default function App() {
                 </div>
                 <div className="max-h-[480px] overflow-auto rounded-xl bg-black/95 flex items-center justify-center p-2 border border-[#bec9bf]/40">
                   {activeDoc.imageDataUrl ? (
-                    activeDoc.fileType === 'application/pdf' ? (
+                    activeDoc.imageDataUrl.startsWith('data:image/') ? (
+                      <img src={activeDoc.imageDataUrl} alt="Original Form" className="max-w-full rounded object-contain" />
+                    ) : (
                       <div className="py-10 text-center text-slate-300 font-mono text-xs space-y-2">
                         <span className="material-symbols-outlined text-3xl text-emerald-400">picture_as_pdf</span>
                         <p>{activeDoc.fileName || 'Uploaded PDF Document'}</p>
                       </div>
-                    ) : (
-                      <img src={activeDoc.imageDataUrl} alt="Original Form" className="max-w-full rounded object-contain" />
                     )
                   ) : (
                     <div className="py-12 text-center text-slate-400 font-mono text-xs">
@@ -1778,7 +1775,7 @@ export default function App() {
                     </div>
 
                     {/* Uploaded Sheet Photo Thumbnail */}
-                    {activeDoc?.imageDataUrl && activeDoc.fileType !== 'application/pdf' && (
+                    {activeDoc?.imageDataUrl && activeDoc.imageDataUrl.startsWith('data:image/') && (
                       <button
                         type="button"
                         onClick={() => setShowPhotoLightbox(!showPhotoLightbox)}
@@ -1799,7 +1796,7 @@ export default function App() {
                     )}
                   </div>
 
-                  {showPhotoLightbox && activeDoc?.imageDataUrl && activeDoc.fileType !== 'application/pdf' && (
+                  {showPhotoLightbox && activeDoc?.imageDataUrl && activeDoc.imageDataUrl.startsWith('data:image/') && (
                     <div className="rounded-xl overflow-auto max-h-56 bg-black border border-[#bec9bf]/50 p-1">
                       <img src={activeDoc.imageDataUrl} alt="Full sheet zoom" className="w-full h-auto object-contain" />
                     </div>
