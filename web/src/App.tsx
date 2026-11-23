@@ -25,6 +25,7 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState('');
   const [scanError, setScanError] = useState<string | null>(null);
+  const [scanningPreviewUrl, setScanningPreviewUrl] = useState<string | null>(null);
   const [ocrStatus, setOcrStatus] = useState<OcrServerStatus | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -172,6 +173,9 @@ export default function App() {
     const reader = new FileReader();
     reader.onload = async (e) => {
       const dataUrl = e.target?.result as string;
+      if (file.type.startsWith('image/')) {
+        setScanningPreviewUrl(dataUrl);
+      }
 
       try {
         const extraction = await extractWithGeminiVision(dataUrl, (step) => setProcessingStep(step));
@@ -216,6 +220,7 @@ export default function App() {
       } finally {
         setIsProcessing(false);
         setProcessingStep('');
+        setScanningPreviewUrl(null);
       }
     };
     reader.readAsDataURL(file);
@@ -638,20 +643,13 @@ export default function App() {
       <header className="w-full bg-[#f8faf9] text-[#006038] shadow-xs z-30 shrink-0 border-b border-[#bec9bf]/20">
         <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#bfedd2]/40 border border-[#a3d1b6]/50 flex items-center justify-center text-[#1f7a4d] shadow-xs">
-              <span className="material-symbols-outlined text-2xl">park</span>
-            </div>
-            
             <div className="flex flex-col">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <span className="font-headline text-[18px] font-extrabold text-[#191c1c] tracking-tight">KFS</span>
                 <span className="font-headline text-[18px] font-extrabold text-[#1f7a4d] tracking-tight">Scan</span>
-                <span className="hidden sm:inline-block px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#e6f4ea] text-[#137333] border border-[#ceead6]">
-                  FORM AGW-85-01
-                </span>
               </div>
               <span className="font-mono text-[10.5px] text-[#556057] font-semibold">
-                Kenya Forest Service • Field Appraisal & Inventory Digitization
+                Field Appraisal &amp; Inventory Digitization
               </span>
             </div>
           </div>
@@ -764,63 +762,53 @@ export default function App() {
               </button>
             </div>
 
-            {/* Central Optical Viewfinder Card */}
-            <div className="relative bg-[#0f172a] rounded-3xl p-2.5 shadow-xl border border-slate-700/60 overflow-hidden">
-              <div className="relative w-full h-[270px] sm:h-[340px] rounded-2xl overflow-hidden bg-slate-950 flex items-center justify-center">
-                {activeDoc?.imageDataUrl ? (
-                  <img 
-                    src={activeDoc.imageDataUrl} 
-                    alt="Current Scanned Document" 
-                    className="absolute inset-0 w-full h-full object-contain filter contrast-105"
+            {/* Central Optical Viewfinder Card (Pure White, Crisp Dark Outline) */}
+            <div className="relative bg-white rounded-3xl p-3 shadow-sm border border-[#191c1c] overflow-hidden">
+              <div className="relative w-full h-[270px] sm:h-[340px] rounded-2xl overflow-hidden bg-white flex items-center justify-center">
+                {scanningPreviewUrl ? (
+                  <img
+                    src={scanningPreviewUrl}
+                    alt="Scanning Uploaded Document"
+                    className="absolute inset-0 w-full h-full object-contain filter contrast-105 bg-white"
                   />
                 ) : (
-                  <div className="absolute inset-0 flex items-center justify-center bg-slate-900/90">
-                    <img 
-                      src="/sample_field_form.jpg" 
-                      alt="Form AGW-85-01 Template" 
-                      className="w-full h-full object-cover opacity-45 filter contrast-125 brightness-95"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/80 pointer-events-none"></div>
-                  </div>
+                  <div className="w-full h-full bg-white" />
                 )}
 
                 {/* Framing & Targeting Corner Brackets */}
-                <div className="absolute inset-3 border border-white/20 rounded-xl pointer-events-none"></div>
-                <div className="absolute top-5 left-5 w-6 h-6 border-t-4 border-l-4 border-[#82d8a3] rounded-tl pointer-events-none shadow-sm"></div>
-                <div className="absolute top-5 right-5 w-6 h-6 border-t-4 border-r-4 border-[#82d8a3] rounded-tr pointer-events-none shadow-sm"></div>
-                <div className="absolute bottom-5 left-5 w-6 h-6 border-b-4 border-l-4 border-[#82d8a3] rounded-bl pointer-events-none shadow-sm"></div>
-                <div className="absolute bottom-5 right-5 w-6 h-6 border-b-4 border-r-4 border-[#82d8a3] rounded-br pointer-events-none shadow-sm"></div>
+                <div className="absolute inset-3 border border-[#191c1c]/35 rounded-xl pointer-events-none"></div>
+                <div className="absolute top-5 left-5 w-5 h-5 border-t-[3px] border-l-[3px] border-[#1f7a4d] rounded-tl pointer-events-none"></div>
+                <div className="absolute top-5 right-5 w-5 h-5 border-t-[3px] border-r-[3px] border-[#1f7a4d] rounded-tr pointer-events-none"></div>
+                <div className="absolute bottom-5 left-5 w-5 h-5 border-b-[3px] border-l-[3px] border-[#1f7a4d] rounded-bl pointer-events-none"></div>
+                <div className="absolute bottom-5 right-5 w-5 h-5 border-b-[3px] border-r-[3px] border-[#1f7a4d] rounded-br pointer-events-none"></div>
 
                 {/* Optical Crosshair */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="w-10 h-10 border border-[#82d8a3]/50 rounded-full flex items-center justify-center">
-                    <span className="w-2 h-2 bg-[#9ef5be] rounded-full shadow-lg"></span>
+                  <div className="w-9 h-9 border border-[#1f7a4d]/30 rounded-full flex items-center justify-center bg-[#1f7a4d]/[0.03]">
+                    <span className="w-1.5 h-1.5 bg-[#1f7a4d] rounded-full"></span>
                   </div>
                 </div>
 
                 {/* Laser Scan Beam */}
-                <div className="laser-beam absolute left-4 right-4 h-[2px] bg-[#9ef5be] shadow-[0_0_12px_3px_rgba(130,216,163,0.9)] pointer-events-none z-10 flex items-center">
-                  <span className="absolute left-0 -top-1 w-2 h-2.5 bg-[#9ef5be] rounded-full shadow-[0_0_8px_#82d8a3]"></span>
-                  <span className="absolute right-0 -top-1 w-2 h-2.5 bg-[#9ef5be] rounded-full shadow-[0_0_8px_#82d8a3]"></span>
+                <div className="laser-beam absolute left-5 right-5 h-[2px] bg-[#10b981] shadow-[0_0_8px_1px_rgba(16,185,129,0.45)] pointer-events-none z-10 flex items-center">
+                  <span className="absolute left-0 -top-1 w-2 h-2.5 bg-[#10b981] rounded-full"></span>
+                  <span className="absolute right-0 -top-1 w-2 h-2.5 bg-[#10b981] rounded-full"></span>
                 </div>
 
                 {/* Top Telemetry */}
-                <div className="absolute top-3 left-4 right-4 flex justify-between items-center pointer-events-none">
-                  <span className="font-mono text-[10.5px] tracking-wider text-white bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-md border border-white/10 font-bold">
-                    FORM: AGW-85-01
-                  </span>
-                  <div className="flex items-center gap-1.5 bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-md border border-white/10 text-[#9ef5be] font-mono text-[10.5px] font-bold">
-                    <span className="w-2 h-2 rounded-full bg-[#9ef5be] animate-pulse"></span>
+                <div className="absolute top-3 left-4 right-4 flex justify-end items-center pointer-events-none z-20">
+                  <div className="flex items-center gap-1.5 bg-[#f4f8f5] px-2.5 py-1 rounded-md border border-[#d2e3d8] text-[#1f7a4d] font-mono text-[10.5px] font-bold">
+                    <span className="w-2 h-2 rounded-full bg-[#1f7a4d] animate-pulse"></span>
                     <span>AUTO-FOCUS</span>
                   </div>
                 </div>
 
                 {/* Bottom Guidance Chip */}
-                <div className="absolute bottom-3 left-4 right-4 flex justify-center pointer-events-none">
-                  <div className="bg-slate-900/90 backdrop-blur-md border border-white/15 px-3.5 py-1.5 rounded-full flex items-center gap-2 shadow-lg">
-                    <span className="material-symbols-outlined text-[#82d8a3] text-[16px]">crop_free</span>
-                    <span className="font-mono text-[11px] text-[#eff1f0] font-semibold tracking-tight">
-                      {isProcessing ? processingStep : 'Align Stumpage Appraisal Form AGW-85-01 within frame'}
+                <div className="absolute bottom-3 left-4 right-4 flex justify-center pointer-events-none z-20">
+                  <div className="bg-[#f4f8f5] border border-[#d2e3d8] px-3.5 py-1.5 rounded-full flex items-center gap-2 shadow-xs">
+                    <span className="material-symbols-outlined text-[#1f7a4d] text-[15px]">crop_free</span>
+                    <span className="font-mono text-[10.5px] text-[#1f7a4d] font-semibold tracking-tight">
+                      {isProcessing ? processingStep : 'Align document within frame'}
                     </span>
                   </div>
                 </div>

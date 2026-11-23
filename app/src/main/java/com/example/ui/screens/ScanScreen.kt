@@ -2,7 +2,6 @@ package com.example.ui.screens
 
 import android.widget.Toast
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,17 +18,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.R
 import com.example.model.ScanMode
 import com.example.ui.components.ScanAuditReportDialog
 import com.example.ui.theme.*
@@ -175,63 +170,40 @@ fun ScanScreen(
             }
         }
 
-        // Central Scanner Viewfinder Card (From Stitch code__7__0f318414.html)
+        // Central Scanner Viewfinder Card (Pure White, Crisp Dark Outline)
         Surface(
-            color = SurfaceCard,
+            color = Color.White,
             shape = RoundedCornerShape(22.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, HairlineBorderSubtle),
-            shadowElevation = 4.dp,
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF191C1C)),
+            shadowElevation = 2.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
             Box(
                 modifier = Modifier
-                    .padding(8.dp)
+                    .padding(10.dp)
                     .fillMaxWidth()
                     .height(280.dp)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFF2E3131))
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.White)
             ) {
-                // Background Form Photo Texture
-                Image(
-                    painter = painterResource(id = R.drawable.sample_field_form),
-                    contentDescription = "Physical KFS Form AGW-85-01 Scan",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-
-                // Tactical Vignette Overlay
+                // Outer Framing Box
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Black.copy(alpha = 0.45f),
-                                    Color.Transparent,
-                                    Color.Black.copy(alpha = 0.65f)
-                                )
-                            )
-                        )
+                        .padding(6.dp)
+                        .border(1.dp, Color(0xFF191C1C).copy(alpha = 0.35f), RoundedCornerShape(12.dp))
                 )
 
-                // Outer Grey Corner Framing Box
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(12.dp)
-                        .border(2.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
-                )
-
-                // Bold Forest Green Inner Corner Targeting Brackets
+                // Bold Emerald Corner Targeting Brackets
                 // Top-Left
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .padding(18.dp)
-                        .size(24.dp)
+                        .padding(14.dp)
+                        .size(22.dp)
                         .border(
-                            width = 4.dp,
-                            color = BrandEmeraldBorder,
+                            width = 3.dp,
+                            color = BrandEmerald,
                             shape = RoundedCornerShape(topStart = 4.dp)
                         )
                 )
@@ -239,11 +211,11 @@ fun ScanScreen(
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(18.dp)
-                        .size(24.dp)
+                        .padding(14.dp)
+                        .size(22.dp)
                         .border(
-                            width = 4.dp,
-                            color = BrandEmeraldBorder,
+                            width = 3.dp,
+                            color = BrandEmerald,
                             shape = RoundedCornerShape(topEnd = 4.dp)
                         )
                 )
@@ -251,11 +223,11 @@ fun ScanScreen(
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        .padding(18.dp)
-                        .size(24.dp)
+                        .padding(14.dp)
+                        .size(22.dp)
                         .border(
-                            width = 4.dp,
-                            color = BrandEmeraldBorder,
+                            width = 3.dp,
+                            color = BrandEmerald,
                             shape = RoundedCornerShape(bottomStart = 4.dp)
                         )
                 )
@@ -263,11 +235,11 @@ fun ScanScreen(
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(18.dp)
-                        .size(24.dp)
+                        .padding(14.dp)
+                        .size(22.dp)
                         .border(
-                            width = 4.dp,
-                            color = BrandEmeraldBorder,
+                            width = 3.dp,
+                            color = BrandEmerald,
                             shape = RoundedCornerShape(bottomEnd = 4.dp)
                         )
                 )
@@ -276,22 +248,22 @@ fun ScanScreen(
                 Box(
                     modifier = Modifier
                         .align(Alignment.Center)
-                        .size(40.dp)
-                        .border(1.dp, BrandEmeraldBorder.copy(alpha = 0.5f), CircleShape),
+                        .size(36.dp)
+                        .border(1.dp, BrandEmerald.copy(alpha = 0.3f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(BrandEmeraldBorder))
+                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(BrandEmerald))
                 }
 
                 // Animated Laser Scan Beam
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
+                        .padding(horizontal = 18.dp)
                         .align(Alignment.TopCenter)
                         .offset(y = (280 * laserYRatio).dp)
                         .height(2.dp)
-                        .background(BrandEmeraldBorder)
+                        .background(BrandEmerald.copy(alpha = 0.85f))
                 )
 
                 // Top Telemetry Header Readout
@@ -300,40 +272,26 @@ fun ScanScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 12.dp)
                         .align(Alignment.TopCenter),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
-                        color = Color.Black.copy(alpha = 0.65f),
-                        shape = RoundedCornerShape(4.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
-                    ) {
-                        Text(
-                            text = "FORM: AGW-85-01",
-                            fontSize = 10.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
-                    }
-
-                    Surface(
-                        color = Color.Black.copy(alpha = 0.65f),
-                        shape = RoundedCornerShape(4.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                        color = Color(0xFFF4F8F5),
+                        shape = RoundedCornerShape(6.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD2E3D8))
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         ) {
-                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(BrandEmeraldBorder))
+                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(BrandEmerald))
                             Text(
                                 text = "AUTO-FOCUS",
                                 fontSize = 10.sp,
                                 fontFamily = FontFamily.Monospace,
-                                color = BrandEmeraldBorder
+                                fontWeight = FontWeight.Bold,
+                                color = BrandEmerald
                             )
                         }
                     }
@@ -341,9 +299,9 @@ fun ScanScreen(
 
                 // Guidance Chip Overlay at bottom of Viewfinder
                 Surface(
-                    color = Color(0xFF2E3131).copy(alpha = 0.88f),
+                    color = Color(0xFFF4F8F5),
                     shape = RoundedCornerShape(9999.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD2E3D8)),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 12.dp)
@@ -353,12 +311,12 @@ fun ScanScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Icon(Icons.Outlined.CropFree, contentDescription = null, tint = BrandEmeraldBorder, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Outlined.CropFree, contentDescription = null, tint = BrandEmerald, modifier = Modifier.size(16.dp))
                         Text(
-                            text = "Align Stumpage Appraisal Form AGW-85-01 within frame",
+                            text = "Align document within frame",
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color.White
+                            color = BrandEmerald
                         )
                     }
                 }

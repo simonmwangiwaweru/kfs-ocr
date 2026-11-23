@@ -81,22 +81,8 @@ fun KfsInventoryApp(viewModel: InventoryViewModel = viewModel()) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Official KFS Shield Crest (Replaces old unused hamburger menu)
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = BrandEmeraldLight,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, BrandEmerald.copy(alpha = 0.3f)),
-                        modifier = Modifier.size(38.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.Default.Park,
-                                contentDescription = "Kenya Forest Service Crest",
-                                tint = BrandEmerald,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                    }
+                    // Balancing spacer so KFS Scan stays centered
+                    Spacer(modifier = Modifier.size(38.dp))
 
                         // Center Wordmark
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -104,14 +90,6 @@ fun KfsInventoryApp(viewModel: InventoryViewModel = viewModel()) {
                                 Text(text = "KFS", fontSize = 18.sp, fontWeight = FontWeight.Black, color = TextPrimary)
                                 Text(text = "Scan", fontSize = 18.sp, fontWeight = FontWeight.Black, color = BrandEmerald)
                             }
-                            Text(
-                                text = "Form AGW-85-01",
-                                fontSize = 10.sp,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.SemiBold,
-                                color = TextSecondary,
-                                modifier = Modifier.padding(top = 1.dp)
-                            )
                         }
 
                         IconButton(
