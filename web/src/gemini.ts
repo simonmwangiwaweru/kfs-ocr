@@ -1,10 +1,6 @@
-// Gemini Multimodal Vision AI Integration for KFS Stumpage Appraisal Form (AGW-85-01) & Field Inventory
-// Automatically detects document type and extracts:
-// 1. 11 Metadata headers (Station, Compartment, Species, Planting Year, Age, Operation, Portion, Product, Number of Trees, Officer, Date)
-// 2. Strict 10-Row x 19-Column Tree Measurement Matrix (DBH in cm/mm)
-// 3. Excludes tally marks (10, 20... 100...) and diagonal slashes
-// 4. Candidate prediction probabilities for ambiguous handwriting
-// 5. Optional Google Cloud Vision OCR Stage 1 + Gemini Stage 2 hybrid pipeline
+// Gemini Multimodal Vision AI Integration for KFS Stumpage Appraisal Form (AGW-85-01)
+// Primary path calls /api/ocr (Vercel Serverless / Vite Proxy) so GEMINI_API_KEY stays server-side.
+// Never falls back to hardcoded sample data on scan failures.
 
 export interface DocumentHeaderColumn {
   key: string;
@@ -24,14 +20,14 @@ export interface CandidatePrediction {
 
 export interface GeminiRowExtraction {
   rowNumber: number;
-  treeNumber: string; // Generic Item/Code/N°
-  speciesCode: string; // Species / Description
-  dbhCm: string; // Primary measurement
-  heightM: string; // Secondary measurement
+  treeNumber: string;
+  speciesCode: string;
+  dbhCm: string;
+  heightM: string;
   healthStatus: string;
   notes: string;
-  cells?: Record<string, string>; // Dynamic cell values: col_1 through col_19 (DBH in Blue)
-  heightCells?: Record<string, string>; // Dynamic cell values: col_1 through col_19 (Height in Red)
+  cells?: Record<string, string>;
+  heightCells?: Record<string, string>;
   cellConfidence?: Record<string, number>;
   candidateValues?: Record<string, CandidatePrediction[]>;
   confidence: {
@@ -71,6 +67,12 @@ export interface GeminiExtractionResult {
   rows: GeminiRowExtraction[];
 }
 
+export interface OcrServerStatus {
+  reachable: boolean;
+  serverKeyConfigured: boolean;
+  visionKeyConfigured: boolean;
+}
+
 const STORAGE_KEY = 'kfs_gemini_api_key';
 const CLOUD_VISION_KEY = 'kfs_cloud_vision_key';
 
@@ -84,7 +86,12 @@ export function getStoredGeminiKey(): string {
 
 export function saveStoredGeminiKey(key: string): void {
   try {
-    localStorage.setItem(STORAGE_KEY, key.trim());
+    const trimmed = key.trim();
+    if (trimmed) {
+      localStorage.setItem(STORAGE_KEY, trimmed);
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+    }
   } catch (e) {
     console.error('Failed to save API key:', e);
   }
@@ -108,16 +115,38 @@ export function getStoredCloudVisionKey(): string {
 
 export function saveStoredCloudVisionKey(key: string): void {
   try {
-    localStorage.setItem(CLOUD_VISION_KEY, key.trim());
+    const trimmed = key.trim();
+    if (trimmed) {
+      localStorage.setItem(CLOUD_VISION_KEY, trimmed);
+    } else {
+      localStorage.removeItem(CLOUD_VISION_KEY);
+    }
   } catch (e) {
     console.error('Failed to save Vision key:', e);
+  }
+}
+
+export async function checkOcrServerStatus(): Promise<OcrServerStatus> {
+  try {
+    const res = await fetch('/api/ocr', { method: 'GET', cache: 'no-store' });
+    if (!res.ok) {
+      return { reachable: false, serverKeyConfigured: false, visionKeyConfigured: false };
+    }
+    const data = await res.json().catch(() => ({}));
+    return {
+      reachable: true,
+      serverKeyConfigured: Boolean(data?.serverKeyConfigured),
+      visionKeyConfigured: Boolean(data?.visionKeyConfigured)
+    };
+  } catch {
+    return { reachable: false, serverKeyConfigured: false, visionKeyConfigured: false };
   }
 }
 
 export async function testGeminiApiKey(apiKey: string): Promise<boolean> {
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey.trim())}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -132,208 +161,240 @@ export async function testGeminiApiKey(apiKey: string): Promise<boolean> {
   }
 }
 
-// Optional Stage 1: Google Cloud Vision OCR Text Detection
-export async function callGoogleCloudVision(base64Data: string, apiKey: string): Promise<string> {
-  try {
-    const rawBase64 = base64Data.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
-    const res = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        requests: [
-          {
-            image: { content: rawBase64 },
-            features: [{ type: 'DOCUMENT_TEXT_DETECTION' }]
-          }
-        ]
-      })
-    });
-    if (!res.ok) return '';
-    const data = await res.json();
-    return data?.responses?.[0]?.fullTextAnnotation?.text || '';
-  } catch (err) {
-    console.warn('Google Cloud Vision call failed, falling back directly to Gemini:', err);
-    return '';
-  }
-}
+// Optimize camera/scanner photos so high-res handwriting stays sharp while staying safely below Vercel's 4.5MB limit
+export async function prepareUploadForOcr(dataUrl: string): Promise<string> {
+  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  const mimeType = match ? match[1] : 'image/jpeg';
 
-// Multimodal System Prompt for KFS Form AGW-85-01 & General Forestry Forms
-const EXTRACTION_SYSTEM_PROMPT = `
-You are an expert OCR & Document Digitization Engine specialized in Kenya Forest Service (KFS) / KEFRI Stumpage Appraisal Forms (Form No. AGW-85-01) and field tree measurement inventories.
-
-Analyze the provided document photograph carefully. 
-
-1. DOCUMENT IDENTIFICATION:
-   - Identify the institution (e.g., "Kenya Forest Service (KFS)"), title (e.g., "STUMPAGE APPRAISAL - FIELD TREE MEASUREMENT FORM AGW-85-01"), subheader, and overall summary.
-
-2. HEADER METADATA EXTRACTION:
-   Extract all header fields into metadataFields array with exact labels and values:
-   - Station (e.g., "Chuka Forest Station")
-   - Compartment / Plot (e.g., "Kiamuriuki 1(k)")
-   - Species (e.g., "Eucalyptus saligna")
-   - Planting Year (e.g., "1982")
-   - Age (e.g., "62")
-   - Date (e.g., "24/09/2026")
-   - Measuring Officer (e.g., "Faith")
-   - Portion (e.g., "Whole")
-   - Operation / Fell (e.g., "Clear Fell")
-   - Product / Classification (e.g., "Timber")
-   - Number of Trees (e.g., "190")
-
-3. DUAL-INK 10-ROW x 19-COLUMN MEASUREMENT MATRIX:
-   - The body consists of 10 rows and 19 numbered columns (Col 1 to Col 19).
-   - In each cell, observe TWO distinct ink entries:
-     a) BLUE INK (Diameter at Breast Height / DBH): The primary, larger numbers written in blue ballpoint ink (e.g. "198", "264", "170", "308", "184", "285", "340").
-        Store in the "cells" object with keys "col_1" through "col_19".
-     b) RED INK (Tree Height / HT): The smaller numbers written in RED ink on top of or above each blue number (e.g. "18.5", "21.0", "19.4", "22.5", "16.0").
-        Store in the "heightCells" object with keys "col_1" through "col_19".
-   - CRITICAL FILTERING RULES:
-     * IGNORE tally count labels (like 10, 20, 30... 100 written along the edges or margins).
-     * IGNORE diagonal slash marks or strike-through lines across numbers. Extract only the underlying numeric values.
-     * Ensure every column (col_1 through col_19) has both its blue DBH value in "cells" and its red Height value in "heightCells".
-
-4. OPTICAL AUDIT & VISIBILITY SPECIFICATIONS:
-   - Identify any numbers that are faint, smudged, creased by paper folds, or partially cut off.
-   - List them in the "visibilityIssues" array with exact row (1-10), col (1-19), field ("DBH (Blue)" or "Height (Red)"), and a clear professional issue description.
-
-5. OUTPUT SCHEMA:
-Return ONLY valid JSON matching this exact structure:
-{
-  "title": "KENYA FOREST SERVICE - STUMPAGE APPRAISAL FORM AGW-85-01",
-  "documentType": "forestry_inventory",
-  "institution": "Kenya Forest Service (KFS)",
-  "subHeader": "Field Tree Measurements",
-  "personName": "Faith",
-  "idNumber": "AGW-85-01",
-  "plotCode": "Kiamuriuki 1(k)",
-  "forestStation": "Chuka Forest Station",
-  "observerName": "Faith",
-  "summary": "Stumpage appraisal field inventory sheet measuring 190 eucalyptus trees across a 10x19 matrix.",
-  "metadataFields": [
-    { "label": "Forest Station", "value": "Chuka Forest Station" },
-    { "label": "Compartment", "value": "Kiamuriuki 1(k)" },
-    { "label": "Species", "value": "Eucalyptus saligna" },
-    { "label": "Planting Year", "value": "1982" },
-    { "label": "Age", "value": "62" },
-    { "label": "Date", "value": "24/09/2026" },
-    { "label": "Measuring Officer", "value": "Faith" },
-    { "label": "Portion", "value": "Whole" },
-    { "label": "Operation", "value": "Clear Fell" },
-    { "label": "Classification", "value": "Timber" },
-    { "label": "Number of Trees", "value": "190" }
-  ],
-  "tableHeaders": [
-    { "key": "col_1", "label": "Col 1" },
-    { "key": "col_2", "label": "Col 2" },
-    { "key": "col_3", "label": "Col 3" },
-    { "key": "col_4", "label": "Col 4" },
-    { "key": "col_5", "label": "Col 5" },
-    { "key": "col_6", "label": "Col 6" },
-    { "key": "col_7", "label": "Col 7" },
-    { "key": "col_8", "label": "Col 8" },
-    { "key": "col_9", "label": "Col 9" },
-    { "key": "col_10", "label": "Col 10" },
-    { "key": "col_11", "label": "Col 11" },
-    { "key": "col_12", "label": "Col 12" },
-    { "key": "col_13", "label": "Col 13" },
-    { "key": "col_14", "label": "Col 14" },
-    { "key": "col_15", "label": "Col 15" },
-    { "key": "col_16", "label": "Col 16" },
-    { "key": "col_17", "label": "Col 17" },
-    { "key": "col_18", "label": "Col 18" },
-    { "key": "col_19", "label": "Col 19" }
-  ],
-  "visibilityIssues": [
-    { "row": 1, "col": 7, "field": "DBH (Blue)", "issue": "Faint blue ballpoint stroke across paper fold" },
-    { "row": 4, "col: 12, "field": "Height (Red)", "issue": "Low-contrast red ink annotation slightly smudged" }
-  ],
-  "rows": [
-    {
-      "rowNumber": 1,
-      "cells": {
-        "col_1": "285", "col_2": "340", "col_3": "275", "col_4": "310", "col_5": "290",
-        "col_6": "355", "col_7": "260", "col_8": "330", "col_9": "295", "col_10": "305",
-        "col_11": "280", "col_12": "320", "col_13": "345", "col_14": "270", "col_15": "315",
-        "col_16": "290", "col_17": "360", "col_18": "265", "col_19": "300"
-      },
-      "heightCells": {
-        "col_1": "18.5", "col_2": "22.0", "col_3": "17.8", "col_4": "20.4", "col_5": "19.2",
-        "col_6": "23.1", "col_7": "17.0", "col_8": "21.5", "col_9": "19.5", "col_10": "20.0",
-        "col_11": "18.2", "col_12": "21.0", "col_13": "22.8", "col_14": "17.6", "col_15": "20.5",
-        "col_16": "19.0", "col_17": "23.5", "col_18": "17.4", "col_19": "19.8"
-      },
-      "cellConfidence": {
-        "col_1": 0.98, "col_2": 0.94, "col_3": 0.78, "col_4": 0.95, "col_5": 0.92,
-        "col_6": 0.88, "col_7": 0.96, "col_8": 0.91, "col_9": 0.74, "col_10": 0.95,
-        "col_11": 0.93, "col_12": 0.89, "col_13": 0.97, "col_14": 0.90, "col_15": 0.86,
-        "col_16": 0.95, "col_17": 0.92, "col_18": 0.81, "col_19": 0.94
-      },
-      "candidateValues": {
-        "col_3": [
-          { "value": "275", "probability": 0.78, "reason": "Slight smudge on digit 7" },
-          { "value": "215", "probability": 0.22, "reason": "Alternative reading if horizontal bar is noise" }
-        ]
-      }
+  if (mimeType === 'application/pdf') {
+    const approxBytes = match ? Math.ceil((match[2].length * 3) / 4) : 0;
+    if (approxBytes > 3_300_000) {
+      throw new Error('PDF exceeds the 3.2 MB upload limit. Please export the page as a JPG/PNG photo or compress the PDF.');
     }
-  ]
+    return dataUrl;
+  }
+
+  if (!mimeType.startsWith('image/')) {
+    return dataUrl;
+  }
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const maxEdge = 2400;
+      let width = img.naturalWidth || img.width;
+      let height = img.naturalHeight || img.height;
+
+      if (width <= maxEdge && height <= maxEdge && dataUrl.length < 2_800_000) {
+        resolve(dataUrl);
+        return;
+      }
+
+      if (width > height && width > maxEdge) {
+        height = Math.round((height * maxEdge) / width);
+        width = maxEdge;
+      } else if (height >= width && height > maxEdge) {
+        width = Math.round((width * maxEdge) / height);
+        height = maxEdge;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(dataUrl);
+        return;
+      }
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', 0.9));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
 }
+
+const CLIENT_FALLBACK_PROMPT = `
+You are an expert OCR & Document Digitization Engine specialized in Kenya Forest Service (KFS) / KEFRI Stumpage Appraisal Forms (Form No. AGW-85-01).
+Analyze the provided document image or PDF carefully.
+1. Scans may be rotated 90/180/270 degrees. Always locate the printed ROW (1..10) and COLUMN (1..19) axes and header fields first.
+2. Read ONLY values physically written on THIS sheet. Never guess or reuse example values; use "" if a field or cell is empty.
+3. Extract primary/blue ink cell entries into "cells" ("col_1".."col_19") and any red-ink entries written inside/above cells into "heightCells" ("col_1".."col_19"). Leave "" when no ink exists.
+4. Strictly disambiguate '7' (flat horizontal top roof + downward diagonal stem, e.g. "178") vs '9' (closed rounded top loop, e.g. "198").
+Return ONLY valid JSON with title, documentType, institution, subHeader, personName, idNumber, plotCode, forestStation, observerName, summary, metadataFields, tableHeaders (col_1..col_19), visibilityIssues, and rows (rowNumber 1..10 with cells, heightCells, cellConfidence, candidateValues).
 `;
+
+function normalizeClientResult(parsed: any): GeminiExtractionResult {
+  const headers: DocumentHeaderColumn[] = Array.isArray(parsed.tableHeaders) && parsed.tableHeaders.length === 19
+    ? parsed.tableHeaders
+    : Array.from({ length: 19 }, (_, i) => ({
+        key: `col_${i + 1}`,
+        label: `Col ${i + 1}`
+      }));
+
+  const rawRows = Array.isArray(parsed.rows) ? parsed.rows : [];
+  const rows: GeminiRowExtraction[] = [];
+
+  for (let idx = 0; idx < Math.max(10, rawRows.length); idx++) {
+    const r = rawRows[idx] || {};
+    const rowNum = Number(r.rowNumber) || idx + 1;
+    const cells: Record<string, string> = {};
+    const heightCells: Record<string, string> = {};
+    const cellConf: Record<string, number> = {};
+
+    headers.forEach((h) => {
+      const rawVal = r.cells?.[h.key] ?? r[h.key] ?? '';
+      const cleanVal = rawVal === null || rawVal === undefined ? '' : String(rawVal).trim();
+      cells[h.key] = cleanVal;
+
+      const rawH = r.heightCells?.[h.key] ?? r.heights?.[h.key] ?? '';
+      const cleanH = rawH === null || rawH === undefined || rawH === 'undefined' || rawH === '-' || rawH === '—'
+        ? ''
+        : String(rawH).trim();
+      heightCells[h.key] = cleanH;
+
+      const conf = r.cellConfidence?.[h.key] ?? r.confidence?.[h.key] ?? r.candidateValues?.[h.key]?.[0]?.probability;
+      cellConf[h.key] = typeof conf === 'number' && !Number.isNaN(conf) ? conf : (cleanVal ? 0.95 : 1.0);
+    });
+
+    const isUncertain = Object.values(cellConf).some((c) => c < 0.85);
+    rows.push({
+      rowNumber: rowNum,
+      treeNumber: String(r.treeNumber || `Tree #${(rowNum - 1) * 19 + 1}`),
+      speciesCode: r.speciesCode || '',
+      dbhCm: cells['col_1'] || r.dbhCm || '',
+      heightM: heightCells['col_1'] || r.heightM || '',
+      healthStatus: r.healthStatus || '',
+      notes: r.notes || '',
+      cells,
+      heightCells,
+      cellConfidence: cellConf,
+      candidateValues: r.candidateValues || {},
+      confidence: {
+        treeNumber: 0.98,
+        speciesCode: 0.95,
+        dbhCm: cellConf['col_1'] ?? 0.95,
+        heightM: 0.95
+      },
+      flags: {
+        dbhUncertain: (cellConf['col_1'] ?? 1.0) < 0.85,
+        heightUncertain: isUncertain
+      },
+      comments: r.comments || [],
+      isVerified: false
+    });
+  }
+
+  const metadataFields: DocumentMetadataItem[] = Array.isArray(parsed.metadataFields) ? parsed.metadataFields : [];
+  const findMeta = (needle: string) =>
+    metadataFields.find((m) => String(m?.label || '').toLowerCase().includes(needle))?.value || '';
+
+  const forestStation = String(parsed.forestStation || findMeta('station') || '').trim();
+  const plotCode = String(parsed.plotCode || findMeta('compartment') || findMeta('plot') || '').trim();
+  const observerName = String(parsed.observerName || parsed.personName || findMeta('officer') || '').trim();
+
+  return {
+    title: String(parsed.title || (plotCode ? `Form AGW-85-01 - ${plotCode}` : 'KFS Stumpage Appraisal Form AGW-85-01')).trim(),
+    documentType: parsed.documentType || 'forestry_inventory',
+    institution: String(parsed.institution || 'Kenya Forest Service (KFS)').trim(),
+    subHeader: String(parsed.subHeader || 'Stumpage Appraisal Tally Form AGW-85-01').trim(),
+    personName: String(parsed.personName || observerName).trim(),
+    idNumber: String(parsed.idNumber || 'AGW-85-01').trim(),
+    plotCode,
+    forestStation,
+    observerName,
+    summary: String(parsed.summary || '').trim(),
+    metadataFields,
+    tableHeaders: headers,
+    visibilityIssues: Array.isArray(parsed.visibilityIssues) ? parsed.visibilityIssues : [],
+    rows
+  };
+}
 
 export async function extractWithGeminiVision(
   imageDataUrl: string,
   onStepChange?: (step: string) => void
 ): Promise<GeminiExtractionResult> {
-  const geminiKey = getStoredGeminiKey();
-  if (!geminiKey) {
-    throw new Error('MISSING_API_KEY');
-  }
+  onStepChange?.('Optimizing sheet image & checking alignment...');
+  const preparedDataUrl = await prepareUploadForOcr(imageDataUrl);
 
-  onStepChange?.('Preparing image and checking OCR anchors...');
-  
-  // Optional Stage 1: Cloud Vision OCR anchor text
-  const visionKey = getStoredCloudVisionKey();
-  let visionAnchorPrompt = '';
-  if (visionKey) {
-    onStepChange?.('Running Stage 1: Google Cloud Vision OCR...');
-    const visionRawText = await callGoogleCloudVision(imageDataUrl, visionKey);
-    if (visionRawText) {
-      visionAnchorPrompt = `\n\n[STAGE 1 GOOGLE CLOUD VISION RAW OCR TEXT ANCHOR]:\n${visionRawText}\nUse this raw OCR text to cross-reference and verify handwritten numerals while mapping to the 10x19 matrix.\n`;
+  const clientApiKey = getStoredGeminiKey();
+  const clientVisionKey = getStoredCloudVisionKey();
+
+  onStepChange?.('Running live Gemini Vision 10×19 OCR extraction...');
+
+  try {
+    const serverRes = await fetch('/api/ocr', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imageDataUrl: preparedDataUrl,
+        clientApiKey: clientApiKey || undefined,
+        clientVisionKey: clientVisionKey || undefined
+      })
+    });
+
+    const payload = await serverRes.json().catch(() => null);
+
+    if (serverRes.ok && payload?.ok && payload?.result) {
+      onStepChange?.('Structuring 10×19 dual-ink matrix...');
+      return payload.result as GeminiExtractionResult;
+    }
+
+    // If /api/ocr exists and returned a clear error (e.g. MISSING_API_KEY, INVALID_API_KEY, OCR_FAILED)
+    if (payload && payload.error) {
+      const err = new Error(payload.error) as Error & { code?: string };
+      err.code = payload.code || 'OCR_ERROR';
+      throw err;
+    }
+
+    if (serverRes.status !== 404) {
+      throw new Error(`OCR service failed with HTTP ${serverRes.status}`);
+    }
+  } catch (err: any) {
+    // Re-throw explicit API / key errors immediately instead of hiding them
+    if (err?.code === 'MISSING_API_KEY' || err?.code === 'INVALID_API_KEY' || err?.code === 'AUTH_ERROR' || err?.code === 'OCR_FAILED' || err?.code === 'OCR_ERROR') {
+      throw err;
+    }
+    // Only fall through to direct browser REST call if /api/ocr is unreachable AND clientApiKey is available
+    if (!clientApiKey) {
+      throw new Error(err?.message || 'OCR endpoint unreachable and no Gemini API key configured in Station Settings.');
     }
   }
 
-  onStepChange?.('Running Gemini Vision 10x19 matrix extraction...');
+  // Direct client fallback only when /api/ocr is unavailable (404/static host) and user supplied a key
+  if (!clientApiKey) {
+    throw new Error('MISSING_API_KEY: Add GEMINI_API_KEY in Vercel Environment Variables or enter an API key in Station Settings.');
+  }
 
-  const match = imageDataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  const match = preparedDataUrl.match(/^data:([^;]+);base64,(.+)$/);
   const mimeType = match ? match[1] : 'image/jpeg';
-  const base64Data = match ? match[2] : imageDataUrl;
+  const base64Data = match ? match[2] : preparedDataUrl;
 
   const requestPayload = {
     contents: [
       {
         parts: [
-          { text: EXTRACTION_SYSTEM_PROMPT + visionAnchorPrompt },
-          {
-            inline_data: {
-              mime_type: mimeType,
-              data: base64Data
-            }
-          }
+          { text: CLIENT_FALLBACK_PROMPT },
+          { inline_data: { mime_type: mimeType, data: base64Data } }
         ]
       }
     ],
     generationConfig: {
-      temperature: 0.1,
+      temperature: 0.05,
       response_mime_type: 'application/json'
     }
   };
 
-  const models = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash'];
+  const models = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.5-pro'];
   let lastError: Error | null = null;
 
   for (const model of models) {
     try {
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(clientApiKey)}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -348,246 +409,15 @@ export async function extractWithGeminiVision(
 
       const data = await response.json();
       const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!rawText) {
-        throw new Error('Empty response received from Gemini');
-      }
+      if (!rawText) throw new Error('Empty response received from Gemini');
 
-      onStepChange?.('Structuring 10x19 table and calculating confidence...');
-      const cleaned = rawText.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
+      const cleaned = rawText.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
       const parsed = JSON.parse(cleaned);
-
-      return formatExtractionResult(parsed);
+      return normalizeClientResult(parsed);
     } catch (err: any) {
-      console.warn(`Model ${model} failed:`, err);
       lastError = err;
     }
   }
 
-  throw lastError || new Error('Failed to process image with Gemini');
-}
-
-function formatExtractionResult(parsed: any): GeminiExtractionResult {
-  const headers: DocumentHeaderColumn[] = Array.isArray(parsed.tableHeaders) && parsed.tableHeaders.length > 0
-    ? parsed.tableHeaders
-    : Array.from({ length: 19 }, (_, i) => ({
-        key: `col_${i + 1}`,
-        label: `Col ${i + 1}`
-      }));
-
-  const rows: GeminiRowExtraction[] = (parsed.rows || []).map((r: any, idx: number) => {
-    const rowNum = r.rowNumber || idx + 1;
-    const cells: Record<string, string> = {};
-    const heightCells: Record<string, string> = {};
-    const cellConf: Record<string, number> = {};
-
-    headers.forEach((h, cIdx) => {
-      const val = r.cells?.[h.key] || r[h.key] || '';
-      cells[h.key] = String(val);
-
-      // Height values (Red ink entries annotated on top of blue DBH)
-      let hVal = r.heightCells?.[h.key] || r.heights?.[h.key] || '';
-      if (!hVal || hVal === '-' || hVal === '—' || hVal === 'undefined') {
-        // Derive allometric tree height (meters) from DBH if specific red number wasn't detected
-        const numVal = parseFloat(String(val).replace(/[^0-9.]/g, ''));
-        if (!isNaN(numVal) && numVal > 20) {
-          // Standard allometric relationship for E. saligna: DBH in mm/cm to height in meters
-          const estimatedMeters = Math.min(32.0, Math.max(12.0, 10.5 + (numVal / 22.0) + ((rowNum + cIdx) % 4) * 0.3)).toFixed(1);
-          hVal = estimatedMeters;
-        } else {
-          hVal = (16.0 + ((rowNum * 3 + cIdx * 2) % 13) * 0.5).toFixed(1);
-        }
-      }
-      heightCells[h.key] = String(hVal);
-
-      const conf = r.cellConfidence?.[h.key] ?? (r.confidence?.[h.key] ?? (r.candidateValues?.[h.key]?.[0]?.probability ?? 0.95));
-      cellConf[h.key] = conf;
-    });
-
-    const isUncertain = Object.values(cellConf).some((c) => c < 0.85);
-
-    return {
-      rowNumber: rowNum,
-      treeNumber: String(r.treeNumber || `Tree #${(rowNum - 1) * 19 + 1}`),
-      speciesCode: r.speciesCode || 'EUC_SAL',
-      dbhCm: cells['col_1'] || r.dbhCm || '',
-      heightM: heightCells['col_1'] || r.heightM || '',
-      healthStatus: r.healthStatus || 'Sound',
-      notes: r.notes || '',
-      cells,
-      heightCells,
-      cellConfidence: cellConf,
-      candidateValues: r.candidateValues || {},
-      confidence: {
-        treeNumber: 0.98,
-        speciesCode: 0.95,
-        dbhCm: cellConf['col_1'] || 0.95,
-        heightM: 0.95
-      },
-      flags: {
-        dbhUncertain: (cellConf['col_1'] || 1.0) < 0.85,
-        heightUncertain: isUncertain
-      },
-      comments: r.comments || [],
-      isVerified: false
-    };
-  });
-
-  const visibilityIssues = Array.isArray(parsed.visibilityIssues) && parsed.visibilityIssues.length > 0
-    ? parsed.visibilityIssues
-    : [
-        { row: 1, col: 7, field: "DBH (Blue)", issue: "Faint blue ballpoint stroke across paper fold" },
-        { row: 4, col: 12, field: "Height (Red)", issue: "Low-contrast red ink annotation slightly smudged" },
-        { row: 7, col: 3, field: "DBH (Blue)", issue: "Paper creased across numeral 8" },
-        { row: 8, col: 12, field: "DBH (Blue)", issue: "Faint handwriting requiring visual inspection" }
-      ];
-
-  return {
-    title: parsed.title || 'KENYA FOREST SERVICE - STUMPAGE APPRAISAL FORM AGW-85-01',
-    documentType: parsed.documentType || 'forestry_inventory',
-    institution: parsed.institution || 'Kenya Forest Service (KFS)',
-    subHeader: parsed.subHeader || 'Field Tree Measurements',
-    personName: parsed.personName || 'Faith',
-    idNumber: parsed.idNumber || 'AGW-85-01',
-    plotCode: parsed.plotCode || 'Kiamuriuki 1(k)',
-    forestStation: parsed.forestStation || 'Chuka Forest Station',
-    observerName: parsed.observerName || 'Faith',
-    summary: parsed.summary || 'Stumpage appraisal form recording tree diameter (blue) and height (red) measurements across a 10x19 matrix.',
-    metadataFields: parsed.metadataFields || [
-      { label: 'Forest Station', value: 'Chuka Forest Station' },
-      { label: 'Compartment', value: 'Kiamuriuki 1(k)' },
-      { label: 'Species', value: 'Eucalyptus saligna' },
-      { label: 'Planting Year', value: '1982' },
-      { label: 'Age', value: '62' },
-      { label: 'Measuring Officer', value: 'Faith' },
-      { label: 'Portion', value: 'Whole' },
-      { label: 'Operation', value: 'Clear Fell' },
-      { label: 'Classification', value: 'Timber' }
-    ],
-    tableHeaders: headers,
-    visibilityIssues,
-    rows
-  };
-}
-
-// Generate Realistic Local Demo Data for Form AGW-85-01
-export function generateLocalScan(title: string = 'KFS_Form_AGW-85-01_Kiamuriuki'): GeminiExtractionResult {
-  const headers: DocumentHeaderColumn[] = Array.from({ length: 19 }, (_, i) => ({
-    key: `col_${i + 1}`,
-    label: `Col ${i + 1}`
-  }));
-
-  // Realistic sample DBH numbers (Blue ink) from Chuka Forest Station Form AGW-85-01
-  const sampleValues = [
-    ['236', '330', '204', '296', '239', '276', '334', '204', '276', '339', '284', '303', '296', '334', '272', '296', '234', '272', '296'],
-    ['303', '247', '235', '214', '326', '235', '218', '224', '204', '295', '304', '330', '224', '208', '296', '335', '215', '214', '245'],
-    ['245', '330', '297', '230', '325', '294', '235', '218', '224', '235', '219', '226', '241', '218', '234', '229', '245', '229', '235'],
-    ['214', '295', '205', '244', '218', '234', '218', '229', '308', '274', '308', '276', '312', '226', '244', '208', '227', '205', '274'],
-    ['216', '294', '244', '218', '238', '295', '224', '218', '225', '205', '244', '308', '254', '200', '175', '324', '308', '247', '307'],
-    ['304', '266', '208', '247', '205', '324', '208', '215', '224', '302', '246', '322', '319', '309', '227', '315', '295', '322', '366'],
-    ['208', '224', '368', '245', '304', '230', '314', '275', '327', '365', '218', '295', '220', '324', '316', '234', '316', '295', '309'],
-    ['294', '312', '294', '302', '366', '319', '345', '309', '272', '346', '339', '154', '216', '247', '208', '328', '316', '272', '366'],
-    ['228', '296', '330', '274', '316', '317', '224', '366', '264', '324', '316', '295', '224', '316', '242', '319', '308', '227', '302'],
-    ['214', '330', '294', '236', '302', '326', '259', '277', '318', '272', '264', '309', '272', '366', '307', '242', '312', '302', '264']
-  ];
-
-  // Smaller numbers in Red ink (Tree Height in meters) annotated on top of blue numbers
-  const heightValues = [
-    ['10.0', '11.0', '12.0', '13.0', '14.0', '15.0', '16.0', '17.0', '18.0', '19.0', '20.0', '21.0', '22.0', '23.0', '24.0', '25.0', '26.0', '27.0', '28.0'],
-    ['10.5', '11.5', '12.5', '13.5', '14.5', '15.5', '16.5', '17.5', '18.5', '19.5', '20.5', '21.5', '22.5', '23.5', '24.5', '25.5', '26.5', '27.5', '28.5'],
-    ['11.0', '12.0', '13.0', '14.0', '15.0', '16.0', '17.0', '18.0', '19.0', '20.0', '21.0', '22.0', '23.0', '24.0', '25.0', '26.0', '27.0', '28.0', '29.0'],
-    ['11.5', '12.5', '13.5', '14.5', '15.5', '16.5', '17.5', '18.5', '19.5', '20.5', '21.5', '22.5', '23.5', '24.5', '25.5', '26.5', '27.5', '28.5', '29.5'],
-    ['12.0', '13.0', '14.0', '15.0', '16.0', '17.0', '18.0', '19.0', '20.0', '21.0', '22.0', '23.0', '24.0', '25.0', '26.0', '27.0', '28.0', '29.0', '30.0'],
-    ['12.5', '13.5', '14.5', '15.5', '16.5', '17.5', '18.5', '19.5', '20.5', '21.5', '22.5', '23.5', '24.5', '25.5', '26.5', '27.5', '28.5', '29.5', '30.5'],
-    ['13.0', '14.0', '15.0', '16.0', '17.0', '18.0', '19.0', '20.0', '21.0', '22.0', '23.0', '24.0', '25.0', '26.0', '27.0', '28.0', '29.0', '30.0', '31.0'],
-    ['13.5', '14.5', '15.5', '16.5', '17.5', '18.5', '19.5', '20.5', '21.5', '22.5', '23.5', '24.5', '25.5', '26.5', '27.5', '28.5', '29.5', '30.5', '31.5'],
-    ['14.0', '15.0', '16.0', '17.0', '18.0', '19.0', '20.0', '21.0', '22.0', '23.0', '24.0', '25.0', '26.0', '27.0', '28.0', '29.0', '30.0', '31.0', '32.0'],
-    ['14.5', '15.5', '16.5', '17.5', '18.5', '19.5', '20.5', '21.5', '22.5', '23.5', '24.5', '25.5', '26.5', '27.5', '28.5', '29.5', '30.5', '31.5', '32.5']
-  ];
-
-  const visibilityIssues = [
-    { row: 1, col: 7, field: "DBH (Blue)", issue: "Faint blue ballpoint stroke partially cut by paper fold line" },
-    { row: 4, col: 12, field: "Height (Red)", issue: "Low-contrast red ink annotation slightly smudged" },
-    { row: 7, col: 3, field: "DBH (Blue)", issue: "Paper creased across numeral 8" },
-    { row: 8, col: 12, field: "DBH (Blue)", issue: "Faint handwriting requiring visual inspection" }
-  ];
-
-  const rows: GeminiRowExtraction[] = sampleValues.map((rowVals, rIdx) => {
-    const rowNum = rIdx + 1;
-    const cells: Record<string, string> = {};
-    const heightCells: Record<string, string> = {};
-    const cellConf: Record<string, number> = {};
-    const candidates: Record<string, CandidatePrediction[]> = {};
-
-    headers.forEach((h, cIdx) => {
-      const val = rowVals[cIdx] || '300';
-      const hVal = heightValues[rIdx]?.[cIdx] || '15.0';
-      cells[h.key] = val;
-      heightCells[h.key] = hVal;
-
-      // Realistic ambiguous cells
-      if ((rIdx === 0 && cIdx === 6) || (rIdx === 6 && cIdx === 2) || (rIdx === 7 && cIdx === 11)) {
-        cellConf[h.key] = 0.74;
-        candidates[h.key] = [
-          { value: val, probability: 0.74, reason: 'Faint ink on digit stroke' },
-          { value: `${parseInt(val) + 10}`, probability: 0.26, reason: 'Alternative loop reading' }
-        ];
-      } else {
-        cellConf[h.key] = 0.95;
-      }
-    });
-
-    return {
-      rowNumber: rowNum,
-      treeNumber: `Tree #${(rowNum - 1) * 19 + 1}`,
-      speciesCode: 'EUC_SAL',
-      dbhCm: cells['col_1'],
-      heightM: heightCells['col_1'],
-      healthStatus: 'Sound',
-      notes: rIdx === 0 ? 'Verified row 1 against Chuka physical sheet' : '',
-      cells,
-      heightCells,
-      cellConfidence: cellConf,
-      candidateValues: candidates,
-      confidence: {
-        treeNumber: 0.99,
-        speciesCode: 0.98,
-        dbhCm: cellConf['col_1'],
-        heightM: 0.95
-      },
-      flags: {
-        dbhUncertain: (cellConf['col_1'] || 1.0) < 0.85,
-        heightUncertain: false
-      },
-      comments: [],
-      isVerified: false
-    };
-  });
-
-  return {
-    title: 'KENYA FOREST SERVICE - STUMPAGE APPRAISAL FORM AGW-85-01',
-    documentType: 'forestry_inventory',
-    institution: 'Kenya Forest Service (KFS)',
-    subHeader: 'Field Tree Measurements (Chuka Forest Station)',
-    personName: 'Faith',
-    idNumber: 'AGW-85-01',
-    plotCode: 'Kiamuriuki 1(k)',
-    forestStation: 'Chuka Forest Station',
-    observerName: 'Faith',
-    summary: 'Stumpage appraisal form recording 190 tree diameter (blue) and height (red) measurements across a 10x19 matrix.',
-    metadataFields: [
-      { label: 'Forest Station', value: 'Chuka Forest Station' },
-      { label: 'Compartment', value: 'Kiamuriuki 1(k)' },
-      { label: 'Species', value: 'Eucalyptus saligna' },
-      { label: 'Planting Year', value: '1982' },
-      { label: 'Age', value: '62' },
-      { label: 'Measuring Officer', value: 'Faith' },
-      { label: 'Portion', value: 'Whole' },
-      { label: 'Operation', value: 'Clear Fell' },
-      { label: 'Classification', value: 'Timber' },
-      { label: 'Number of Trees', value: '1,023' }
-    ],
-    tableHeaders: headers,
-    visibilityIssues,
-    rows
-  };
+  throw lastError || new Error('Failed to process document with Gemini Vision.');
 }

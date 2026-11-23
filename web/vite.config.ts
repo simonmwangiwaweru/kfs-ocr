@@ -10,10 +10,20 @@ function ocrProxy(env: Record<string, string>): Plugin {
   const attach = (server: { middlewares: { use: (fn: any) => void } }) => {
     server.middlewares.use(async (req: any, res: any, next: () => void) => {
       if (!req.url || !req.url.startsWith('/api/ocr')) return next();
+      const { handleOcr, getOcrStatus } = require('./server/ocrCore.cjs');
+
+      if (req.method === 'GET') {
+        const { status, json } = getOcrStatus(env);
+        res.statusCode = status;
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Cache-Control', 'no-store');
+        return res.end(JSON.stringify(json));
+      }
+
       if (req.method !== 'POST') {
         res.statusCode = 405;
         res.setHeader('Content-Type', 'application/json');
-        return res.end(JSON.stringify({ code: 'METHOD', error: 'Use POST.' }));
+        return res.end(JSON.stringify({ ok: false, code: 'METHOD', error: 'Use GET or POST.' }));
       }
       const chunks: Buffer[] = [];
       for await (const chunk of req) chunks.push(chunk as Buffer);
@@ -23,7 +33,6 @@ function ocrProxy(env: Record<string, string>): Plugin {
       } catch {
         /* handled as bad request below */
       }
-      const { handleOcr } = require('./server/ocrCore.cjs');
       const { status, json } = await handleOcr(body, env);
       res.statusCode = status;
       res.setHeader('Content-Type', 'application/json');

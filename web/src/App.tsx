@@ -8,13 +8,14 @@ import {
   clearStoredGeminiKey, 
   getStoredCloudVisionKey,
   saveStoredCloudVisionKey,
-  generateLocalScan,
-  testGeminiApiKey
+  testGeminiApiKey,
+  checkOcrServerStatus,
+  type OcrServerStatus
 } from './gemini';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'scan' | 'review' | 'archive' | 'settings'>('scan');
-  const [viewMode, setViewMode] = useState<'document' | 'excel' | 'photo'>('document'); // in review tab
+  const [viewMode, setViewMode] = useState<'document' | 'excel' | 'notepad' | 'photo'>('document'); // in review tab
   const [documents, setDocuments] = useState<ScanRecord[]>([]);
   const [activeDoc, setActiveDoc] = useState<ScanRecord | null>(null);
   const [isOffline, setIsOffline] = useState(false);
@@ -23,6 +24,8 @@ export default function App() {
   const [archiveSubTab, setArchiveSubTab] = useState<'today' | 'week' | 'all' | 'review'>('all');
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState('');
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [ocrStatus, setOcrStatus] = useState<OcrServerStatus | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Inspector sheet state
@@ -30,12 +33,14 @@ export default function App() {
     rowNumber: number;
     colKey: string;
     colLabel: string;
+    field: 'dbh' | 'height';
     value: string;
     confidence: number;
     isUncertain: boolean;
     candidateValues?: Array<{ value: string; probability: number; reason?: string }>;
     commentText?: string;
   } | null>(null);
+  const [showPhotoLightbox, setShowPhotoLightbox] = useState(false);
 
   // API Key dialog / settings state
   const [geminiKeyInput, setGeminiKeyInput] = useState('');
@@ -63,6 +68,7 @@ export default function App() {
     loadDocuments();
     setGeminiKeyInput(getStoredGeminiKey());
     setVisionKeyInput(getStoredCloudVisionKey());
+    checkOcrServerStatus().then(setOcrStatus);
 
     const handleOnline = () => setIsOffline(false);
     const handleOffline = () => setIsOffline(true);
@@ -112,27 +118,30 @@ export default function App() {
     }));
   };
 
+  const getDocMeta = (doc: ScanRecord | null, keyword: string, fallback = '—'): string => {
+    if (!doc) return fallback;
+    const found = doc.metadataFields?.find(m => m.label.toLowerCase().includes(keyword.toLowerCase()))?.value?.trim();
+    return found || fallback;
+  };
+
   const getCellDisplay = (row: ScanRow, headerKey: string): string => {
     if (row.cells && row.cells[headerKey] !== undefined) {
-      return String(row.cells[headerKey]);
+      const val = String(row.cells[headerKey]).trim();
+      return val || '—';
     }
-    if (headerKey === 'col_1' || headerKey === 'treeNumber') return row.treeNumber || '';
-    if (headerKey === 'col_2' || headerKey === 'speciesCode') return row.speciesCode || '';
+    if (headerKey === 'col_1' || headerKey === 'treeNumber') return row.treeNumber || '—';
+    if (headerKey === 'col_2' || headerKey === 'speciesCode') return row.speciesCode || '—';
     return '—';
   };
 
   const getHeightCellDisplay = (row: ScanRow, headerKey: string): string => {
-    if (row.heightCells && row.heightCells[headerKey] !== undefined && row.heightCells[headerKey] !== '' && row.heightCells[headerKey] !== '—' && row.heightCells[headerKey] !== '-') {
-      return String(row.heightCells[headerKey]);
+    if (row.heightCells && row.heightCells[headerKey] !== undefined) {
+      const val = String(row.heightCells[headerKey]).trim();
+      if (val && val !== '-' && val !== '—' && val !== 'undefined') {
+        return val;
+      }
     }
-    // Populate realistic tree height (meters) from DBH so table is always complete
-    const dbh = getCellDisplay(row, headerKey);
-    const num = parseFloat(dbh.replace(/[^0-9.]/g, ''));
-    const colIdx = parseInt(headerKey.replace('col_', '')) || 1;
-    if (!isNaN(num) && num > 20) {
-      return Math.min(32.5, Math.max(12.0, 10.5 + (num / 22.0) + ((row.rowNumber + colIdx) % 4) * 0.3)).toFixed(1);
-    }
-    return (16.0 + ((row.rowNumber * 3 + colIdx * 2) % 13) * 0.5).toFixed(1);
+    return '—';
   };
 
   const getCellConfidence = (row: ScanRow, headerKey: string): number => {
@@ -157,26 +166,21 @@ export default function App() {
 
   const processImageFile = async (file: File) => {
     setIsProcessing(true);
-    setProcessingStep('Preparing image & optical reticle...');
+    setScanError(null);
+    setProcessingStep('Preparing document for live OCR...');
 
     const reader = new FileReader();
     reader.onload = async (e) => {
       const dataUrl = e.target?.result as string;
 
       try {
-        const apiKey = getStoredGeminiKey();
-        let extraction;
-
-        if (apiKey) {
-          extraction = await extractWithGeminiVision(dataUrl, (step) => setProcessingStep(step));
-        } else {
-          showToast('No Gemini Key set. Loaded Form AGW-85-01 data. Configure key in Settings for live OCR.');
-          extraction = generateLocalScan(file.name.replace(/\.[^/.]+$/, ''));
-        }
+        const extraction = await extractWithGeminiVision(dataUrl, (step) => setProcessingStep(step));
 
         const newDoc: ScanRecord = {
           id: `DOC-${Date.now()}`,
-          title: `Stumpage Appraisal - ${extraction.plotCode || 'Plot A'}`,
+          title: extraction.plotCode
+            ? `Stumpage Appraisal - ${extraction.plotCode}`
+            : (extraction.title || file.name.replace(/\.[^/.]+$/, '')),
           documentType: extraction.documentType,
           institution: extraction.institution,
           subHeader: extraction.subHeader,
@@ -188,6 +192,7 @@ export default function App() {
           summary: extraction.summary,
           metadataFields: extraction.metadataFields,
           tableHeaders: extraction.tableHeaders,
+          visibilityIssues: extraction.visibilityIssues || [],
           date: Date.now(),
           imageDataUrl: dataUrl,
           fileName: file.name,
@@ -202,10 +207,12 @@ export default function App() {
         setDocuments(prev => [newDoc, ...prev]);
         setActiveDoc(newDoc);
         setActiveTab('review');
-        showToast('Form AGW-85-01 scanned & digitized into 10×19 matrix!');
+        showToast('Document scanned & transcribed into 10×19 matrix!');
       } catch (err: any) {
         console.error('OCR Extraction error:', err);
-        showToast(`Extraction error: ${err.message || 'Check API key or image clarity'}`);
+        const msg = String(err?.message || 'OCR failed. Check your Gemini API key or document clarity.');
+        setScanError(msg);
+        showToast(msg);
       } finally {
         setIsProcessing(false);
         setProcessingStep('');
@@ -217,7 +224,9 @@ export default function App() {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    processImageFile(files[0]);
+    const selected = files[0];
+    e.target.value = '';
+    processImageFile(selected);
   };
 
   // ==========================================
@@ -226,15 +235,18 @@ export default function App() {
   // Structured Output: Blue DBH table first, exactly two lines of space, followed by Red Height table.
   // ==========================================
 
-  const handleExportNotepad = (doc: ScanRecord) => {
+  const generateNotepadText = (doc: ScanRecord): string => {
     const headers = getDocumentHeaders(doc);
-    const station = doc.metadataFields?.find(m => m.label.toLowerCase().includes('station'))?.value || doc.forestStation || 'Chuka Forest Station';
-    const compartment = doc.metadataFields?.find(m => m.label.toLowerCase().includes('compartment'))?.value || doc.plotCode || 'Kiamuriuki 1(k)';
-    const species = doc.metadataFields?.find(m => m.label.toLowerCase().includes('species'))?.value || 'Eucalyptus saligna';
-    const dateStr = doc.metadataFields?.find(m => m.label.toLowerCase().includes('date'))?.value || new Date(doc.date).toLocaleDateString();
-    const officer = doc.metadataFields?.find(m => m.label.toLowerCase().includes('officer'))?.value || doc.observerName || 'Faith';
-    const plantingYear = doc.metadataFields?.find(m => m.label.toLowerCase().includes('planting'))?.value || '1982';
-    const treeCount = `${doc.rows.length * 19}`;
+    const station = getDocMeta(doc, 'station', doc.forestStation || '—');
+    const compartment = getDocMeta(doc, 'compartment', doc.plotCode || '—');
+    const species = getDocMeta(doc, 'species', '—');
+    const dateStr = getDocMeta(doc, 'date', new Date(doc.date).toLocaleDateString());
+    const officer = getDocMeta(doc, 'officer', doc.observerName || '—');
+    const plantingYear = getDocMeta(doc, 'planting', '—');
+    const age = getDocMeta(doc, 'age', '');
+    const operation = getDocMeta(doc, 'operation', '—');
+    const portion = getDocMeta(doc, 'portion', '');
+    const treeCount = getDocMeta(doc, 'number of trees', `${doc.rows.length * 19}`);
 
     let text = "";
     text += "========================================================================================================================\r\n";
@@ -243,8 +255,8 @@ export default function App() {
     text += "========================================================================================================================\r\n";
     text += `Station:             ${station.padEnd(32)} Date:              ${dateStr}\r\n`;
     text += `Compartment:         ${compartment.padEnd(32)} Officer:           ${officer}\r\n`;
-    text += `Species:             ${species.padEnd(32)} Planting Year:     ${plantingYear} (Age 62)\r\n`;
-    text += `Assessment:          Clear Fell (Whole)                Total Trees:       ${treeCount}\r\n`;
+    text += `Species:             ${species.padEnd(32)} Planting Year:     ${plantingYear}${age && age !== '—' ? ` (Age ${age})` : ''}\r\n`;
+    text += `Assessment:          ${(operation + (portion && portion !== '—' ? ` (${portion})` : '')).padEnd(32)} Total Trees:       ${treeCount}\r\n`;
     text += "------------------------------------------------------------------------------------------------------------------------\r\n\r\n";
     text += "TABLE 1: PRIMARY DIAMETER AT BREAST HEIGHT (DBH) - BLUE INK NUMBERS (10 ROWS x 19 COLUMNS):\r\n";
     text += "------------------------------------------------------------------------------------------------------------------------\r\n";
@@ -284,7 +296,11 @@ export default function App() {
 
     text += "========================================================================================================================\r\n";
     text += `Digitized Official Record • Form AGW-85-01 • Generated: ${new Date().toLocaleString()}\r\n`;
+    return text;
+  };
 
+  const handleExportNotepad = (doc: ScanRecord) => {
+    const text = generateNotepadText(doc);
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -301,12 +317,14 @@ export default function App() {
 
   const handleExportWord = (doc: ScanRecord) => {
     const headers = getDocumentHeaders(doc);
-    const station = doc.metadataFields?.find(m => m.label.toLowerCase().includes('station'))?.value || doc.forestStation || 'Chuka Forest Station';
-    const compartment = doc.metadataFields?.find(m => m.label.toLowerCase().includes('compartment'))?.value || doc.plotCode || 'Kiamuriuki 1(k)';
-    const species = doc.metadataFields?.find(m => m.label.toLowerCase().includes('species'))?.value || 'Eucalyptus saligna';
-    const dateStr = doc.metadataFields?.find(m => m.label.toLowerCase().includes('date'))?.value || new Date(doc.date).toLocaleDateString();
-    const officer = doc.metadataFields?.find(m => m.label.toLowerCase().includes('officer'))?.value || doc.observerName || 'Faith';
-    const plantingYear = doc.metadataFields?.find(m => m.label.toLowerCase().includes('planting'))?.value || '1982';
+    const station = getDocMeta(doc, 'station', doc.forestStation || '—');
+    const compartment = getDocMeta(doc, 'compartment', doc.plotCode || '—');
+    const species = getDocMeta(doc, 'species', '—');
+    const dateStr = getDocMeta(doc, 'date', new Date(doc.date).toLocaleDateString());
+    const officer = getDocMeta(doc, 'officer', doc.observerName || '—');
+    const plantingYear = getDocMeta(doc, 'planting', '—');
+    const age = getDocMeta(doc, 'age', '');
+    const operation = getDocMeta(doc, 'operation', 'Field Appraisal');
 
     const headerHtml = `
       <div style="border-bottom: 2px solid #1f7a4d; padding-bottom: 10px; margin-bottom: 14px; text-align: center;">
@@ -316,7 +334,7 @@ export default function App() {
         <h2 style="color: #191c1c; font-size: 12pt; margin: 4px 0 0 0; font-family: 'Segoe UI', Arial, sans-serif;">
           STUMPAGE APPRAISAL TALLY FORM AGW-85-01
         </h2>
-        <p style="color: #6f7a71; font-size: 10pt; margin: 2px 0 0 0;">Chuka Forest Station • Compartment Kiamuriuki 1(k) • Clear Fell (Whole)</p>
+        <p style="color: #6f7a71; font-size: 10pt; margin: 2px 0 0 0;">${station} • Compartment ${compartment} • ${operation}</p>
       </div>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 9.5pt; background: #f8faf9; border: 1px solid #bec9bf;">
         <tbody>
@@ -327,83 +345,145 @@ export default function App() {
           </tr>
           <tr>
             <td style="padding: 6px 10px; border: 1px solid #bec9bf;"><strong>Species:</strong> ${species}</td>
-            <td style="padding: 6px 10px; border: 1px solid #bec9bf;"><strong>Planting Year:</strong> ${plantingYear} (Age 62)</td>
+            <td style="padding: 6px 10px; border: 1px solid #bec9bf;"><strong>Planting Year:</strong> ${plantingYear}${age && age !== '—' ? ` (Age ${age})` : ''}</td>
             <td style="padding: 6px 10px; border: 1px solid #bec9bf;"><strong>Measuring Officer:</strong> ${officer}</td>
           </tr>
         </tbody>
       </table>
     `;
 
-    const tableHeaderHtml = headers.map(h => `<th style="background-color: #1D4ED8; color: white; border: 1px solid #1E40AF; padding: 5px; font-size: 8.5pt;">${h.label}</th>`).join('');
-    const heightHeaderHtml = headers.map(h => `<th style="background-color: #DC2626; color: white; border: 1px solid #B91C1C; padding: 5px; font-size: 8.5pt;">${h.label}</th>`).join('');
+    const colgroupHtml = `
+      <colgroup>
+        <col style="width: 5%;" width="5%" />
+        ${headers.map(() => '<col style="width: 5%;" width="5%" />').join('')}
+      </colgroup>
+    `;
+
+    const tableHeaderHtml = headers.map(h => {
+      const shortCol = h.label.replace(/^Col(umn)?\s*/i, 'C');
+      return `<th nowrap="nowrap" style="background-color: #1D4ED8; color: white; border: 0.5pt solid #1E40AF; padding: 3pt 1pt; font-size: 7.5pt; text-align: center; white-space: nowrap !important; word-break: keep-all !important;">${shortCol}</th>`;
+    }).join('');
+
+    const heightHeaderHtml = headers.map(h => {
+      const shortCol = h.label.replace(/^Col(umn)?\s*/i, 'C');
+      return `<th nowrap="nowrap" style="background-color: #DC2626; color: white; border: 0.5pt solid #B91C1C; padding: 3pt 1pt; font-size: 7.5pt; text-align: center; white-space: nowrap !important; word-break: keep-all !important;">${shortCol}</th>`;
+    }).join('');
 
     const dbhRowsHtml = doc.rows.map(r => {
       const cellsHtml = headers.map(h => {
         const val = getCellDisplay(r, h.key);
-        return `<td style="border: 1px solid #bec9bf; padding: 5px; text-align: center; font-size: 9pt; font-family: monospace; color: #1D4ED8; font-weight: bold;">${val || '—'}</td>`;
+        return `<td nowrap="nowrap" style="border: 0.5pt solid #CBD5E1; padding: 2.5pt 1pt; text-align: center; font-size: 8pt; font-family: Consolas, monospace; color: #1D4ED8; font-weight: bold; white-space: nowrap !important; word-break: keep-all !important;">${val || '—'}</td>`;
       }).join('');
-      return `<tr><td style="background-color: #eceeed; border: 1px solid #bec9bf; padding: 5px; text-align: center; font-weight: bold; font-size: 8.5pt;">R${r.rowNumber}</td>${cellsHtml}</tr>`;
+      return `<tr><td nowrap="nowrap" style="background-color: #F1F5F9; border: 0.5pt solid #CBD5E1; padding: 2.5pt 1pt; text-align: center; font-weight: bold; font-size: 7.5pt; color: #334155; white-space: nowrap !important;">R${r.rowNumber}</td>${cellsHtml}</tr>`;
     }).join('');
 
     const heightRowsHtml = doc.rows.map(r => {
       const cellsHtml = headers.map(h => {
         const val = getHeightCellDisplay(r, h.key);
-        return `<td style="border: 1px solid #bec9bf; padding: 5px; text-align: center; font-size: 9pt; font-family: monospace; color: #DC2626; font-weight: bold;">${val || '—'}</td>`;
+        return `<td nowrap="nowrap" style="border: 0.5pt solid #CBD5E1; padding: 2.5pt 1pt; text-align: center; font-size: 8pt; font-family: Consolas, monospace; color: #DC2626; font-weight: bold; white-space: nowrap !important; word-break: keep-all !important;">${val || '—'}</td>`;
       }).join('');
-      return `<tr><td style="background-color: #eceeed; border: 1px solid #bec9bf; padding: 5px; text-align: center; font-weight: bold; font-size: 8.5pt;">R${r.rowNumber}</td>${cellsHtml}</tr>`;
+      return `<tr><td nowrap="nowrap" style="background-color: #F1F5F9; border: 0.5pt solid #CBD5E1; padding: 2.5pt 1pt; text-align: center; font-weight: bold; font-size: 7.5pt; color: #334155; white-space: nowrap !important;">R${r.rowNumber}</td>${cellsHtml}</tr>`;
     }).join('');
 
     const fullHtml = `
       <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
       <head>
+        <!--[if gte mso 9]>
+        <xml>
+          <w:WordDocument>
+            <w:View>Print</w:View>
+            <w:Zoom>100</w:Zoom>
+            <w:DoNotOptimizeForBrowser/>
+          </w:WordDocument>
+        </xml>
+        <![endif]-->
         <meta charset='utf-8'>
-        <title>KFS Form AGW-85-01 Digitized</title>
+        <title>KFS Form AGW-85-01 Digitized Document</title>
         <style>
-          @page { size: landscape; margin: 1.5cm; }
-          body { font-family: 'Segoe UI', Arial, sans-serif; }
-          table { border-collapse: collapse; width: 100%; margin-bottom: 12px; }
+          @page {
+            size: 11.69in 8.27in;
+            margin: 0.4in 0.35in 0.4in 0.35in;
+            mso-page-orientation: landscape;
+          }
+          @page Section1 {
+            size: 841.9pt 595.3pt;
+            mso-page-orientation: landscape;
+            margin: 28pt 24pt 28pt 24pt;
+            mso-header-margin: 18pt;
+            mso-footer-margin: 18pt;
+          }
+          div.Section1 {
+            page: Section1;
+          }
+          body {
+            font-family: Calibri, 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            color: #191c1c;
+          }
+          table.matrixGrid {
+            border-collapse: collapse;
+            table-layout: fixed;
+            width: 100%;
+            mso-table-layout-alt: fixed;
+            margin-top: 4pt;
+            margin-bottom: 0pt;
+          }
+          table.matrixGrid th {
+            white-space: nowrap !important;
+            word-break: keep-all !important;
+          }
+          table.matrixGrid td {
+            white-space: nowrap !important;
+            word-break: keep-all !important;
+          }
         </style>
       </head>
       <body>
-        ${headerHtml}
-        <h3 style="color: #1D4ED8; font-size: 11pt; margin-top: 10px; margin-bottom: 6px;">
-          TABLE 1: TREE DIAMETER AT BREAST HEIGHT (DBH) - BLUE INK [10 ROWS × 19 COLUMNS]
-        </h3>
-        <table>
-          <thead>
-            <tr>
-              <th style="background-color: #1D4ED8; color: white; border: 1px solid #1E40AF; padding: 5px; font-size: 8.5pt;">Row</th>
-              ${tableHeaderHtml}
-            </tr>
-          </thead>
-          <tbody>
-            ${dbhRowsHtml}
-          </tbody>
-        </table>
+        <div class="Section1">
+          ${headerHtml}
+          
+          <h3 style="color: #191c1c; font-size: 10pt; font-family: Calibri, Arial, sans-serif; font-weight: bold; margin-top: 6pt; margin-bottom: 3pt;">
+            Tree Diameter Measurements (DBH) &bull; 10 &times; 19 Matrix
+          </h3>
+          <table class="matrixGrid" border="1" cellspacing="0" cellpadding="2">
+            ${colgroupHtml}
+            <thead>
+              <tr>
+                <th nowrap="nowrap" style="background-color: #1E40AF; color: white; border: 0.5pt solid #1E3A8A; padding: 3pt 1pt; font-size: 7.5pt; text-align: center; white-space: nowrap !important;">Row</th>
+                ${tableHeaderHtml}
+              </tr>
+            </thead>
+            <tbody>
+              ${dbhRowsHtml}
+            </tbody>
+          </table>
 
-        <!-- EXACTLY TWO LINES OF BLANK SPACE -->
-        <div style="height: 36px; margin: 20px 0; border-top: 1px dashed #bec9bf; border-bottom: 1px dashed #bec9bf; text-align: center; color: #6f7a71; font-size: 9pt; line-height: 36px; font-family: monospace;">
-          [ EXACTLY TWO LINES OF BLANK SPACE AS PER OFFICIAL SPECIFICATION ]
+          <!-- Exactly Two Lines of Blank Space -->
+          <p style="margin: 0; padding: 0; line-height: 16pt; font-size: 10pt;">&nbsp;</p>
+          <p style="margin: 0; padding: 0; line-height: 16pt; font-size: 10pt;">&nbsp;</p>
+
+          <h3 style="color: #191c1c; font-size: 10pt; font-family: Calibri, Arial, sans-serif; font-weight: bold; margin-top: 2pt; margin-bottom: 3pt;">
+            Tree Height Measurements (Height) &bull; 10 &times; 19 Matrix
+          </h3>
+          <table class="matrixGrid" border="1" cellspacing="0" cellpadding="2">
+            ${colgroupHtml}
+            <thead>
+              <tr>
+                <th nowrap="nowrap" style="background-color: #B91C1C; color: white; border: 0.5pt solid #991B1B; padding: 3pt 1pt; font-size: 7.5pt; text-align: center; white-space: nowrap !important;">Row</th>
+                ${heightHeaderHtml}
+              </tr>
+            </thead>
+            <tbody>
+              ${heightRowsHtml}
+            </tbody>
+          </table>
+
+          <p style="margin-top: 14pt; font-size: 8pt; color: #64748B; text-align: right; font-family: Calibri, Arial, sans-serif;">
+            Official Record &bull; Form AGW-85-01 Field Appraisal &bull; Generated: ${new Date().toLocaleDateString()}
+          </p>
         </div>
-
-        <h3 style="color: #DC2626; font-size: 11pt; margin-top: 10px; margin-bottom: 6px;">
-          TABLE 2: TREE HEIGHT (HT) - RED INK ANNOTATIONS [10 ROWS × 19 COLUMNS]
-        </h3>
-        <table>
-          <thead>
-            <tr>
-              <th style="background-color: #DC2626; color: white; border: 1px solid #B91C1C; padding: 5px; font-size: 8.5pt;">Row</th>
-              ${heightHeaderHtml}
-            </tr>
-          </thead>
-          <tbody>
-            ${heightRowsHtml}
-          </tbody>
-        </table>
-
-        <p style="margin-top: 20px; font-size: 8.5pt; color: #6f7a71; text-align: right;">
-          Digitized with KFS Field Appraisal Scanner • Form AGW-85-01 Official Record
-        </p>
       </body>
       </html>
     `;
@@ -507,10 +587,19 @@ export default function App() {
     setShowExportModal(false);
   };
 
-  const handleUpdateCellValue = async (rowNumber: number, colKey: string, newValue: string) => {
+  const handleUpdateCellValue = async (rowNumber: number, colKey: string, newValue: string, field: 'dbh' | 'height' = 'dbh') => {
     if (!activeDoc) return;
     const updatedRows = activeDoc.rows.map(r => {
       if (r.rowNumber === rowNumber) {
+        if (field === 'height') {
+          const heightCells = { ...(r.heightCells || {}), [colKey]: newValue };
+          const cellConf = { ...(r.cellConfidence || {}), [colKey]: 1.0 };
+          return {
+            ...r,
+            heightCells,
+            cellConfidence: cellConf
+          };
+        }
         const cells = { ...(r.cells || {}), [colKey]: newValue };
         const cellConf = { ...(r.cellConfidence || {}), [colKey]: 1.0 };
         return {
@@ -738,12 +827,41 @@ export default function App() {
               </div>
             </div>
 
+            {/* OCR Error / Configuration Alert */}
+            {scanError && (
+              <div className="bg-red-50 border border-red-200 rounded-2xl p-3.5 space-y-2 shadow-xs">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2 text-red-800">
+                    <span className="material-symbols-outlined text-[20px] shrink-0 mt-0.5">error</span>
+                    <div>
+                      <p className="font-headline text-[13px] font-bold">Live OCR Scan Failed</p>
+                      <p className="font-mono text-[11px] text-red-700 mt-0.5 leading-relaxed">{scanError}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setScanError(null)}
+                    className="text-red-500 hover:text-red-700 p-0.5"
+                    aria-label="Dismiss error"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">close</span>
+                  </button>
+                </div>
+                <button
+                  onClick={() => setActiveTab('settings')}
+                  className="px-3 py-1.5 rounded-lg bg-red-700 hover:bg-red-800 text-white font-mono text-[11px] font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[15px]">settings</span>
+                  <span>Check Station Settings & API Key</span>
+                </button>
+              </div>
+            )}
+
             {/* Primary Action Buttons */}
             <div className="space-y-3">
               <button 
                 onClick={() => cameraInputRef.current?.click()}
                 disabled={isProcessing}
-                className="w-full primary-btn-tactile text-white rounded-2xl py-3.5 px-6 flex items-center justify-center gap-3 active:scale-[0.98] transition-all cursor-pointer shadow-lg hover:brightness-105"
+                className="w-full primary-btn-tactile text-white rounded-2xl py-3.5 px-6 flex items-center justify-center gap-3 active:scale-[0.98] transition-all cursor-pointer shadow-lg hover:brightness-105 disabled:opacity-60"
               >
                 <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
                   <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>photo_camera</span>
@@ -756,7 +874,7 @@ export default function App() {
               <button 
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isProcessing}
-                className="w-full bg-white border border-[#bec9bf]/60 rounded-2xl py-3 px-5 flex items-center justify-center gap-2.5 hover:bg-[#f8faf9] active:scale-[0.98] transition-all cursor-pointer shadow-xs"
+                className="w-full bg-white border border-[#bec9bf]/60 rounded-2xl py-3 px-5 flex items-center justify-center gap-2.5 hover:bg-[#f8faf9] active:scale-[0.98] transition-all cursor-pointer shadow-xs disabled:opacity-60"
               >
                 <span className="material-symbols-outlined text-[20px] text-[#1f7a4d]">upload_file</span>
                 <span className="font-headline text-[14px] font-bold text-[#191c1c]">Browse Document Files (JPG, PNG, PDF)</span>
@@ -798,35 +916,44 @@ export default function App() {
             <div className="w-full bg-[#f8faf9] p-2.5 rounded-2xl border border-[#bec9bf]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-xs">
               <div>
                 <h2 className="font-headline text-[15px] font-bold text-[#191c1c] leading-tight">Field Appraisal Document</h2>
-                <span className="font-mono text-[10px] text-[#6f7a71] uppercase tracking-wider">{activeDoc.idNumber || 'FORM AGW-85-01'} • {activeDoc.plotCode || 'Kiamuriuki 1(k)'}</span>
+                <span className="font-mono text-[10px] text-[#6f7a71] uppercase tracking-wider">{activeDoc.idNumber || 'FORM AGW-85-01'} • {activeDoc.plotCode || activeDoc.forestStation || activeDoc.fileName || 'Field Sheet'}</span>
               </div>
-              {/* Document View vs Excel View vs Photo Toggle */}
-              <div className="bg-[#eceeed] p-1 rounded-xl flex items-center gap-1 self-start sm:self-auto">
+              {/* Document View vs Excel View vs Notepad View vs Photo Toggle */}
+              <div className="bg-[#eceeed] p-1 rounded-xl flex items-center gap-1 self-start sm:self-auto overflow-x-auto no-scrollbar">
                 <button 
                   onClick={() => setViewMode('document')}
-                  className={`py-1.5 px-3 rounded-lg flex items-center gap-1.5 text-[11px] font-mono font-bold transition-all cursor-pointer ${
+                  className={`py-1.5 px-2.5 rounded-lg flex items-center gap-1 text-[11px] font-mono font-bold transition-all cursor-pointer whitespace-nowrap ${
                     viewMode === 'document' ? 'bg-white shadow-sm text-[#1f7a4d]' : 'text-[#3f4941] hover:text-[#191c1c]'
                   }`}
                 >
-                  <span className="material-symbols-outlined text-[16px]">description</span>
+                  <span className="material-symbols-outlined text-[15px]">description</span>
                   <span>Document View</span>
                 </button>
                 <button 
                   onClick={() => setViewMode('excel')}
-                  className={`py-1.5 px-3 rounded-lg flex items-center gap-1.5 text-[11px] font-mono font-bold transition-all cursor-pointer ${
+                  className={`py-1.5 px-2.5 rounded-lg flex items-center gap-1 text-[11px] font-mono font-bold transition-all cursor-pointer whitespace-nowrap ${
                     viewMode === 'excel' ? 'bg-[#107c41] text-white shadow-sm' : 'text-[#3f4941] hover:text-[#191c1c]'
                   }`}
                 >
-                  <span className="material-symbols-outlined text-[16px]">table_chart</span>
+                  <span className="material-symbols-outlined text-[15px]">table_chart</span>
                   <span>Excel View</span>
                 </button>
                 <button 
+                  onClick={() => setViewMode('notepad')}
+                  className={`py-1.5 px-2.5 rounded-lg flex items-center gap-1 text-[11px] font-mono font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    viewMode === 'notepad' ? 'bg-[#D97706] text-white shadow-sm' : 'text-[#3f4941] hover:text-[#191c1c]'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[15px]">text_snippet</span>
+                  <span>Notepad View</span>
+                </button>
+                <button 
                   onClick={() => setViewMode('photo')}
-                  className={`py-1.5 px-2.5 rounded-lg flex items-center gap-1 text-[11px] font-mono font-bold transition-all cursor-pointer ${
+                  className={`py-1.5 px-2 rounded-lg flex items-center gap-1 text-[11px] font-mono font-bold transition-all cursor-pointer whitespace-nowrap ${
                     viewMode === 'photo' ? 'bg-white shadow-sm text-[#1f7a4d]' : 'text-[#3f4941] hover:text-[#191c1c]'
                   }`}
                 >
-                  <span className="material-symbols-outlined text-[16px]">photo_camera</span>
+                  <span className="material-symbols-outlined text-[15px]">photo_camera</span>
                   <span>Photo</span>
                 </button>
               </div>
@@ -863,14 +990,21 @@ export default function App() {
               <section className="tactile-card rounded-2xl p-3 border border-[#bec9bf]/30 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-[11px] font-bold text-[#1f7a4d] uppercase">Physical Document Scan</span>
-                  <span className="font-mono text-[10px] text-[#6f7a71]">Chuka Forest Station Sheet</span>
+                  <span className="font-mono text-[10px] text-[#6f7a71]">{activeDoc.forestStation || activeDoc.fileName || 'Uploaded Sheet'}</span>
                 </div>
-                <div className="max-h-[360px] overflow-auto rounded-xl bg-black/95 flex items-center justify-center p-2 border border-[#bec9bf]/40">
+                <div className="max-h-[480px] overflow-auto rounded-xl bg-black/95 flex items-center justify-center p-2 border border-[#bec9bf]/40">
                   {activeDoc.imageDataUrl ? (
-                    <img src={activeDoc.imageDataUrl} alt="Original Form" className="max-w-full rounded object-contain" />
+                    activeDoc.fileType === 'application/pdf' ? (
+                      <div className="py-10 text-center text-slate-300 font-mono text-xs space-y-2">
+                        <span className="material-symbols-outlined text-3xl text-emerald-400">picture_as_pdf</span>
+                        <p>{activeDoc.fileName || 'Uploaded PDF Document'}</p>
+                      </div>
+                    ) : (
+                      <img src={activeDoc.imageDataUrl} alt="Original Form" className="max-w-full rounded object-contain" />
+                    )
                   ) : (
                     <div className="py-12 text-center text-slate-400 font-mono text-xs">
-                      No raw image stored for this generated sample.
+                      No raw image stored for this record.
                     </div>
                   )}
                 </div>
@@ -889,28 +1023,38 @@ export default function App() {
                       <span className="material-symbols-outlined text-[#1f7a4d] text-[18px]">nature</span>
                       <span className="font-mono text-[11px] text-[#1f7a4d] font-bold uppercase tracking-wider">FOREST INVENTORY SPECIFICATIONS</span>
                     </div>
-                    <span className="font-mono text-[10px] bg-[#eceeed] px-2 py-0.5 rounded text-[#3f4941]">{new Date(activeDoc.date).toLocaleDateString()}</span>
+                    <span className="font-mono text-[10px] bg-[#eceeed] px-2 py-0.5 rounded text-[#3f4941]">
+                      {getDocMeta(activeDoc, 'date', new Date(activeDoc.date).toLocaleDateString())}
+                    </span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 font-mono text-[11px]">
                     <div className="bg-[#f2f4f3] p-2 rounded-lg">
                       <span className="text-[#6f7a71] block text-[9.5px] uppercase font-medium">Station</span>
-                      <span className="font-bold text-[#191c1c] truncate block mt-0.5">{activeDoc.forestStation || 'Chuka Forest Station'}</span>
+                      <span className="font-bold text-[#191c1c] truncate block mt-0.5">{getDocMeta(activeDoc, 'station', activeDoc.forestStation || '—')}</span>
                     </div>
                     <div className="bg-[#f2f4f3] p-2 rounded-lg">
                       <span className="text-[#6f7a71] block text-[9.5px] uppercase font-medium">Compartment</span>
-                      <span className="font-bold text-[#191c1c] block mt-0.5">{activeDoc.plotCode || 'Kiamuriuki 1(k)'}</span>
+                      <span className="font-bold text-[#191c1c] block mt-0.5">{getDocMeta(activeDoc, 'compartment', activeDoc.plotCode || '—')}</span>
                     </div>
                     <div className="bg-[#f2f4f3] p-2 rounded-lg col-span-2">
                       <span className="text-[#6f7a71] block text-[9.5px] uppercase font-medium">Species Taxon</span>
-                      <span className="font-bold text-[#1f7a4d] block mt-0.5 italic">Eucalyptus saligna (Timber / Whole)</span>
+                      <span className="font-bold text-[#1f7a4d] block mt-0.5 italic">
+                        {getDocMeta(activeDoc, 'species', '—')}
+                        {getDocMeta(activeDoc, 'operation', '') && ` (${getDocMeta(activeDoc, 'operation', '')})`}
+                      </span>
                     </div>
                     <div className="bg-[#f2f4f3] p-2 rounded-lg">
                       <span className="text-[#6f7a71] block text-[9.5px] uppercase font-medium">Planting Year</span>
-                      <span className="font-bold text-[#191c1c] block mt-0.5">1982 <span className="font-normal text-[#6f7a71] text-[9.5px]">(Age 62)</span></span>
+                      <span className="font-bold text-[#191c1c] block mt-0.5">
+                        {getDocMeta(activeDoc, 'planting', '—')}
+                        {getDocMeta(activeDoc, 'age', '') && (
+                          <span className="font-normal text-[#6f7a71] text-[9.5px]"> (Age {getDocMeta(activeDoc, 'age', '')})</span>
+                        )}
+                      </span>
                     </div>
                     <div className="bg-[#f2f4f3] p-2 rounded-lg">
                       <span className="text-[#6f7a71] block text-[9.5px] uppercase font-medium">Measuring Officer</span>
-                      <span className="font-bold text-[#191c1c] block mt-0.5">{activeDoc.observerName || 'Faith'}</span>
+                      <span className="font-bold text-[#191c1c] block mt-0.5">{getDocMeta(activeDoc, 'officer', activeDoc.observerName || '—')}</span>
                     </div>
                   </div>
                 </section>
@@ -959,12 +1103,14 @@ export default function App() {
                                       rowNumber: row.rowNumber,
                                       colKey: h.key,
                                       colLabel: h.label,
-                                      value: val,
+                                      field: 'dbh',
+                                      value: val === '—' ? '' : val,
                                       confidence: conf,
                                       isUncertain: isLow,
                                       candidateValues: row.candidateValues?.[h.key]
                                     });
-                                    setManualOverrideVal(val);
+                                    setManualOverrideVal(val === '—' ? '' : val);
+                                    setShowPhotoLightbox(false);
                                   }}
                                   className={`px-2 py-2 text-center font-bold text-[#1D4ED8] cursor-pointer select-none border-r border-[#bec9bf]/30 transition-all ${
                                     isLow ? 'bg-[#FEF3C7] text-[#D97706]' : 'hover:bg-blue-50'
@@ -1025,11 +1171,13 @@ export default function App() {
                                       rowNumber: row.rowNumber,
                                       colKey: h.key,
                                       colLabel: h.label,
-                                      value: val,
+                                      field: 'height',
+                                      value: val === '—' ? '' : val,
                                       confidence: 0.95,
                                       isUncertain: false
                                     });
-                                    setManualOverrideVal(val);
+                                    setManualOverrideVal(val === '—' ? '' : val);
+                                    setShowPhotoLightbox(false);
                                   }}
                                   className="px-2 py-2 text-center font-bold text-[#DC2626] cursor-pointer select-none border-r border-[#bec9bf]/30 hover:bg-red-50 transition-all"
                                 >
@@ -1146,6 +1294,52 @@ export default function App() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              </section>
+            )}
+
+            {/* ==================================================== */}
+            {/* VIEW MODE 3: NOTEPAD (.TXT) PREVIEW                   */}
+            {/* ==================================================== */}
+            {viewMode === 'notepad' && (
+              <section className="bg-white rounded-2xl border border-[#D97706]/40 shadow-md overflow-hidden">
+                {/* Notepad Title Bar & Actions */}
+                <div className="bg-[#1e293b] text-white p-2.5 flex items-center justify-between border-b border-slate-700">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[#F59E0B] text-[20px]">text_snippet</span>
+                    <span className="font-mono text-[12px] font-bold">KFS_Form_AGW-85-01.txt &bull; Notepad</span>
+                    <span className="px-2 py-0.5 rounded bg-white/10 text-[10px] font-mono text-slate-300">Monospace Fixed-Width</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText(generateNotepadText(activeDoc));
+                        showToast("Copied full Notepad table to clipboard!");
+                      }}
+                      className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-100 font-mono text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">content_copy</span>
+                      <span>Copy Text</span>
+                    </button>
+                    <button 
+                      onClick={() => handleExportNotepad(activeDoc)}
+                      className="px-2.5 py-1 rounded bg-[#D97706] hover:bg-[#b45309] text-white font-mono text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">download</span>
+                      <span>Download .txt</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Notepad Content Area */}
+                <div className="bg-[#fcfdfd] border-b border-slate-200 p-2 flex items-center justify-between text-slate-500 font-mono text-[10.5px]">
+                  <span>UTF-8 &bull; Windows (CRLF) &bull; Fixed Column Alignment</span>
+                  <span>10 Rows &times; 19 Columns</span>
+                </div>
+                <div className="relative overflow-x-auto max-h-[460px] custom-scrollbar bg-white p-3">
+                  <pre className="font-mono text-[11px] leading-[15px] text-[#0f172a] whitespace-pre select-text font-normal">
+                    {generateNotepadText(activeDoc)}
+                  </pre>
                 </div>
               </section>
             )}
@@ -1362,16 +1556,16 @@ export default function App() {
               <div className="mt-3.5 space-y-2.5">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="p-2.5 bg-[#f2f4f3] rounded-xl border border-[#bec9bf]/40">
-                    <span className="font-mono text-[10px] text-[#6f7a71] uppercase tracking-wider block">Forest Station</span>
-                    <span className="font-headline text-[13px] font-bold text-[#191c1c] block mt-0.5">Chuka Station</span>
+                    <span className="font-mono text-[10px] text-[#6f7a71] uppercase tracking-wider block">Standard Form</span>
+                    <span className="font-headline text-[13px] font-bold text-[#191c1c] block mt-0.5">KFS Form AGW-85-01</span>
                   </div>
                   <div className="p-2.5 bg-[#f2f4f3] rounded-xl border border-[#bec9bf]/40">
-                    <span className="font-mono text-[10px] text-[#6f7a71] uppercase tracking-wider block">Target Species</span>
-                    <span className="font-headline text-[13px] font-bold text-[#191c1c] block mt-0.5">E. saligna (62 yrs)</span>
+                    <span className="font-mono text-[10px] text-[#6f7a71] uppercase tracking-wider block">Active Station</span>
+                    <span className="font-headline text-[13px] font-bold text-[#191c1c] block mt-0.5 truncate">{activeDoc?.forestStation || 'Auto-detected'}</span>
                   </div>
                   <div className="p-2.5 bg-[#f2f4f3] rounded-xl border border-[#bec9bf]/40">
-                    <span className="font-mono text-[10px] text-[#6f7a71] uppercase tracking-wider block">Default Compartment</span>
-                    <span className="font-headline text-[13px] font-bold text-[#191c1c] block mt-0.5">Kiamuriuki 1(k)</span>
+                    <span className="font-mono text-[10px] text-[#6f7a71] uppercase tracking-wider block">Active Compartment</span>
+                    <span className="font-headline text-[13px] font-bold text-[#191c1c] block mt-0.5 truncate">{activeDoc?.plotCode || 'Auto-detected'}</span>
                   </div>
                   <div className="p-2.5 bg-[#f2f4f3] rounded-xl border border-[#bec9bf]/40">
                     <span className="font-mono text-[10px] text-[#6f7a71] uppercase tracking-wider block">Grid Specification</span>
@@ -1379,23 +1573,87 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Secure Vision Node Status */}
-                <div className="bg-[#f2f4f3]/80 rounded-xl p-3 flex items-center justify-between border border-[#bec9bf]/35">
+                {/* Live Server & API Key Status */}
+                <div className={`rounded-xl p-3 flex items-center justify-between border ${
+                  ocrStatus?.serverKeyConfigured || geminiKeyInput.trim()
+                    ? 'bg-[#f2f4f3]/80 border-[#bec9bf]/35'
+                    : 'bg-amber-50 border-amber-200'
+                }`}>
                   <div className="flex items-center gap-2.5">
                     <span className="relative flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#9ef5be] opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#1f7a4d]"></span>
+                      <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
+                        ocrStatus?.serverKeyConfigured || geminiKeyInput.trim() ? 'bg-[#1f7a4d]' : 'bg-amber-500'
+                      }`}></span>
                     </span>
                     <div className="flex flex-col">
                       <span className="font-mono text-[11px] font-bold text-[#191c1c] leading-tight">
-                        Optical Document Processing
+                        Live Gemini Vision OCR (/api/ocr)
                       </span>
-                      <span className="font-mono text-[10px] text-[#1f7a4d]">Pre-configured • Secured Node #KE-085</span>
+                      <span className="font-mono text-[10px] text-[#3f4941]">
+                        {ocrStatus?.serverKeyConfigured
+                          ? 'Vercel Server GEMINI_API_KEY Active'
+                          : geminiKeyInput.trim()
+                            ? 'Using Personal Gemini API Key (Local)'
+                            : 'Needs GEMINI_API_KEY in Vercel or below'}
+                      </span>
                     </div>
                   </div>
-                  <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#dcfce7] text-[#166534] border border-[#bbf7d0]">
-                    ACTIVE
+                  <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    ocrStatus?.serverKeyConfigured || geminiKeyInput.trim()
+                      ? 'bg-[#dcfce7] text-[#166534] border-[#bbf7d0]'
+                      : 'bg-amber-100 text-amber-800 border-amber-300'
+                  }`}>
+                    {ocrStatus?.serverKeyConfigured || geminiKeyInput.trim() ? 'READY' : 'SETUP NEEDED'}
                   </span>
+                </div>
+
+                {/* Optional API Key Override for Local / Direct Testing */}
+                <div className="pt-2 space-y-2 border-t border-[#bec9bf]/30">
+                  <div className="flex items-center justify-between">
+                    <label className="font-mono text-[11px] font-bold text-[#191c1c]">
+                      Gemini API Key (Optional Browser Override)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowKeyText(!showKeyText)}
+                      className="font-mono text-[10px] text-[#1f7a4d] font-semibold cursor-pointer"
+                    >
+                      {showKeyText ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                  <input
+                    type={showKeyText ? 'text' : 'password'}
+                    value={geminiKeyInput}
+                    onChange={(e) => {
+                      setGeminiKeyInput(e.target.value);
+                      setKeyTestStatus('idle');
+                    }}
+                    placeholder={ocrStatus?.serverKeyConfigured ? 'Optional (Server key already active)' : 'Paste AIza... key if not set on Vercel'}
+                    className="w-full bg-[#f2f4f3] border border-[#bec9bf]/60 rounded-xl px-3 py-2 font-mono text-[12px] text-[#191c1c] focus:outline-none focus:ring-2 focus:ring-[#1f7a4d]"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleTestKey}
+                      disabled={keyTestStatus === 'testing'}
+                      className="px-3 py-1.5 rounded-xl border border-[#bec9bf] bg-white font-mono text-[11px] font-bold text-[#191c1c] hover:bg-[#f8faf9] cursor-pointer"
+                    >
+                      {keyTestStatus === 'testing' ? 'Testing...' : 'Test Key'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveKeys}
+                      className="px-3 py-1.5 rounded-xl bg-[#1f7a4d] text-white font-mono text-[11px] font-bold hover:bg-[#17613c] cursor-pointer"
+                    >
+                      Save Configuration
+                    </button>
+                    {keyTestStatus === 'valid' && (
+                      <span className="font-mono text-[10.5px] font-bold text-emerald-700">Valid Key</span>
+                    )}
+                    {keyTestStatus === 'invalid' && (
+                      <span className="font-mono text-[10.5px] font-bold text-red-600">Invalid Key</span>
+                    )}
+                  </div>
                 </div>
               </div>
             </section>
@@ -1482,16 +1740,20 @@ export default function App() {
 
               {/* Scrollable Sheet Content */}
               <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 no-scrollbar">
-                {/* 1. Current Value Card with 4x Crop Preview */}
-                <div className="rounded-2xl p-4 bg-[#F8FAFC] border border-[#bec9bf]/40 shadow-sm relative overflow-hidden">
+                {/* 1. Current Value Card with Real Photo Inspection */}
+                <div className="rounded-2xl p-4 bg-[#F8FAFC] border border-[#bec9bf]/40 shadow-sm relative overflow-hidden space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
-                      <span className="font-mono text-[10px] text-[#3f4941] font-medium tracking-wide">OCR VALUE DETECTED</span>
+                      <span className="font-mono text-[10px] text-[#3f4941] font-medium tracking-wide">
+                        {selectedCell.field === 'height' ? 'HEIGHT / RED INK ENTRY' : 'DBH / PRIMARY ENTRY'}
+                      </span>
                       <div className="flex items-baseline gap-2 mt-1">
                         <span className="font-mono text-[36px] leading-none font-bold text-[#191c1c] tracking-tight tabular-nums">
-                          {selectedCell.value}
+                          {selectedCell.value || '—'}
                         </span>
-                        <span className="font-mono text-[12px] text-[#3f4941]">cm DBH</span>
+                        <span className="font-mono text-[12px] text-[#3f4941]">
+                          {selectedCell.field === 'height' ? 'Height' : 'DBH'}
+                        </span>
                       </div>
                       {/* Confidence Badge */}
                       <div className={`inline-flex items-center gap-1.5 mt-3 px-2.5 py-1 rounded-full font-mono text-[10.5px] font-semibold ${
@@ -1502,22 +1764,33 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Physical Crop Reticle */}
-                    <div className="flex flex-col items-center">
-                      <div className="w-24 h-20 rounded-xl bg-[#f2f4f3] border-2 border-[#bec9bf]/60 shadow-inner overflow-hidden relative grain-overlay flex items-center justify-center">
-                        <div className="absolute inset-0 border border-[#006038]/10 pointer-events-none"></div>
-                        <div className="absolute w-full h-[1px] bg-red-400/40 top-1/2"></div>
-                        <div className="absolute h-full w-[1px] bg-red-400/40 left-1/2"></div>
-                        <div className="font-serif font-bold text-2xl text-[#1E293B] italic tracking-tight opacity-90">
-                          {selectedCell.value}
+                    {/* Uploaded Sheet Photo Thumbnail */}
+                    {activeDoc?.imageDataUrl && activeDoc.fileType !== 'application/pdf' && (
+                      <button
+                        type="button"
+                        onClick={() => setShowPhotoLightbox(!showPhotoLightbox)}
+                        className="flex flex-col items-center cursor-pointer group"
+                      >
+                        <div className="w-24 h-20 rounded-xl bg-slate-900 border-2 border-[#bec9bf]/60 shadow-inner overflow-hidden relative flex items-center justify-center">
+                          <img
+                            src={activeDoc.imageDataUrl}
+                            alt="Uploaded sheet reference"
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+                          />
+                          <span className="absolute bottom-1 right-1 bg-[#191c1c]/80 text-white font-mono text-[9px] px-1 rounded">
+                            {showPhotoLightbox ? 'HIDE' : 'ZOOM'}
+                          </span>
                         </div>
-                        <span className="absolute bottom-1 right-1 bg-[#191c1c]/75 text-white font-mono text-[9px] px-1 rounded">
-                          4× CROP
-                        </span>
-                      </div>
-                      <span className="font-mono text-[9.5px] text-[#3f4941] mt-1">Field Slip Detail</span>
-                    </div>
+                        <span className="font-mono text-[9.5px] text-[#1f7a4d] font-semibold mt-1">Inspect Sheet</span>
+                      </button>
+                    )}
                   </div>
+
+                  {showPhotoLightbox && activeDoc?.imageDataUrl && activeDoc.fileType !== 'application/pdf' && (
+                    <div className="rounded-xl overflow-auto max-h-56 bg-black border border-[#bec9bf]/50 p-1">
+                      <img src={activeDoc.imageDataUrl} alt="Full sheet zoom" className="w-full h-auto object-contain" />
+                    </div>
+                  )}
                 </div>
 
                 {/* 2. Candidate Alternative Readings */}
@@ -1535,11 +1808,11 @@ export default function App() {
                     <div className="p-3 rounded-2xl bg-white border-2 border-[#1f7a4d] shadow-sm flex items-center justify-between">
                       <div className="flex items-center space-x-3">
                         <div className="w-9 h-9 rounded-xl bg-[#bceacf] flex items-center justify-center text-[#006038] font-mono font-bold text-sm">
-                          {selectedCell.value}
+                          {selectedCell.value || '—'}
                         </div>
                         <div>
                           <div className="flex items-center gap-1.5">
-                            <span className="font-mono text-[12px] font-bold text-[#191c1c]">{selectedCell.value} cm</span>
+                            <span className="font-mono text-[12px] font-bold text-[#191c1c]">{selectedCell.value || 'Empty'}</span>
                             <span className="px-1.5 py-0.5 rounded-full bg-[#FEF3C7] text-[#D97706] font-mono text-[10px] font-semibold">
                               {(selectedCell.confidence * 100).toFixed(0)}%
                             </span>
@@ -1557,7 +1830,7 @@ export default function App() {
                     {selectedCell.candidateValues?.slice(1).map((cand, idx) => (
                       <div 
                         key={idx}
-                        onClick={() => handleUpdateCellValue(selectedCell.rowNumber, selectedCell.colKey, cand.value)}
+                        onClick={() => handleUpdateCellValue(selectedCell.rowNumber, selectedCell.colKey, cand.value, selectedCell.field)}
                         className="p-3 rounded-2xl bg-white border border-[#bec9bf]/60 shadow-sm hover:border-[#1f7a4d] flex items-center justify-between cursor-pointer"
                       >
                         <div className="flex items-center space-x-3">
@@ -1566,7 +1839,7 @@ export default function App() {
                           </div>
                           <div>
                             <div className="flex items-center gap-1.5">
-                              <span className="font-mono text-[12px] font-bold text-[#191c1c]">{cand.value} cm</span>
+                              <span className="font-mono text-[12px] font-bold text-[#191c1c]">{cand.value}</span>
                               <span className="px-1.5 py-0.5 rounded-full bg-[#eceeed] text-[#3f4941] font-mono text-[10px]">
                                 {(cand.probability * 100).toFixed(0)}%
                               </span>
@@ -1595,35 +1868,14 @@ export default function App() {
                         onChange={(e) => setManualOverrideVal(e.target.value)}
                         className="w-full bg-white border border-[#bec9bf] rounded-xl px-3 py-2 font-mono text-[16px] font-bold text-[#191c1c] focus:outline-none focus:ring-2 focus:ring-[#1f7a4d]"
                       />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[11px] text-[#6f7a71]">cm</span>
                     </div>
                     <button 
-                      onClick={() => handleUpdateCellValue(selectedCell.rowNumber, selectedCell.colKey, manualOverrideVal.trim())}
+                      onClick={() => handleUpdateCellValue(selectedCell.rowNumber, selectedCell.colKey, manualOverrideVal.trim(), selectedCell.field)}
                       className="tactile-btn text-white px-3.5 py-2 rounded-xl font-mono text-[11.5px] font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                     >
                       <span className="material-symbols-outlined text-[16px]">check_circle</span>
                       <span>Confirm & Verify</span>
                     </button>
-                  </div>
-                </div>
-
-                {/* 4. Audit Notes */}
-                <div className="space-y-2 pt-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-[11px] font-bold text-[#191c1c]">Audit Notes</span>
-                    <span className="font-mono text-[10px] text-[#6f7a71]">KENYA FOREST SERVICE</span>
-                  </div>
-                  <div className="p-3 rounded-2xl bg-[#F0FDF4] border border-[#DCFCE7] space-y-1">
-                    <div className="flex items-center justify-between text-[#3d6751]">
-                      <div className="flex items-center gap-1">
-                        <span className="material-symbols-outlined text-xs">shield_person</span>
-                        <span className="font-mono text-[10.5px] font-bold">J. Kariuki, Forest Officer</span>
-                      </div>
-                      <span className="font-mono text-[9px] text-[#416b55]">Verified</span>
-                    </div>
-                    <p className="font-mono text-[11px] text-[#191c1c] pl-3 border-l-2 border-[#1f7a4d]/40">
-                      Digit inspected and confirmed against physical field slip sheet.
-                    </p>
                   </div>
                 </div>
               </div>
@@ -1637,7 +1889,7 @@ export default function App() {
                   Cancel
                 </button>
                 <button 
-                  onClick={() => handleUpdateCellValue(selectedCell.rowNumber, selectedCell.colKey, manualOverrideVal.trim())}
+                  onClick={() => handleUpdateCellValue(selectedCell.rowNumber, selectedCell.colKey, manualOverrideVal.trim(), selectedCell.field)}
                   className="flex-1 py-2 px-3 rounded-xl bg-[#1f7a4d] text-white font-mono text-[11px] font-bold shadow-md text-center flex items-center justify-center gap-1.5"
                 >
                   <span className="material-symbols-outlined text-[16px]">save</span>

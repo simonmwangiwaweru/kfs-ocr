@@ -180,6 +180,7 @@ fun ReviewScreen(
                     listOf(
                         Pair("dual", "Document View"),
                         Pair("excel", "Excel View"),
+                        Pair("notepad", "Notepad View"),
                         Pair("photo", "Photo")
                     ).forEach { (mode, label) ->
                         val isSelected = previewMode == mode
@@ -192,7 +193,7 @@ fun ReviewScreen(
                         ) {
                             Text(
                                 text = label,
-                                fontSize = 10.5.sp,
+                                fontSize = 10.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                 color = if (isSelected) Color.White else TextPrimary,
                                 textAlign = TextAlign.Center,
@@ -378,6 +379,76 @@ fun ReviewScreen(
                         viewModel.selectCell(rowNum, colIdx, colKey, cell)
                     }
                 )
+            }
+            "notepad" -> {
+                // Monospace Notepad (.txt) Table View
+                val notepadStr = remember(currentDoc) { viewModel.prepareNotepadExport(currentDoc) }
+                Surface(
+                    color = SurfaceCard,
+                    shape = RoundedCornerShape(16.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, HairlineBorderSubtle),
+                    shadowElevation = 2.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column {
+                        // Notepad Window Header
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF1E293B))
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(Icons.Default.Description, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(16.dp))
+                                Text(
+                                    text = "Form_AGW-85-01.txt • Notepad",
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                            Button(
+                                onClick = {
+                                    val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                    cm?.setPrimaryClip(android.content.ClipData.newPlainText("Notepad Table", notepadStr))
+                                    Toast.makeText(context, "Copied Notepad text to clipboard!", Toast.LENGTH_SHORT).show()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706)),
+                                shape = RoundedCornerShape(6.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Text("Copy Text", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+
+                        // Notepad Monospace Text Content
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 200.dp, max = 400.dp)
+                                .background(Color(0xFFFCFDFD))
+                                .padding(10.dp)
+                        ) {
+                            Text(
+                                text = notepadStr,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 10.sp,
+                                lineHeight = 13.sp,
+                                color = Color(0xFF0F172A),
+                                modifier = Modifier
+                                    .verticalScroll(rememberScrollState())
+                                    .horizontalScroll(rememberScrollState())
+                            )
+                        }
+                    }
+                }
             }
         }
 
