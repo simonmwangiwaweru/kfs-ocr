@@ -350,12 +350,27 @@ export async function extractWithGeminiVision(
       throw err;
     }
 
-    if (serverRes.status !== 404) {
+    if (serverRes.status === 404) {
+      if (!clientApiKey) {
+        const err = new Error(
+          'OCR endpoint /api/ocr returned 404 (not deployed). Push the latest code (including web/api/ocr.js), or paste your Gemini API key in Station Settings as an immediate backup.'
+        ) as Error & { code?: string };
+        err.code = 'ENDPOINT_404';
+        throw err;
+      }
+    } else {
       throw new Error(`OCR service failed with HTTP ${serverRes.status}`);
     }
   } catch (err: any) {
-    // Re-throw explicit API / key errors immediately instead of hiding them
-    if (err?.code === 'MISSING_API_KEY' || err?.code === 'INVALID_API_KEY' || err?.code === 'AUTH_ERROR' || err?.code === 'OCR_FAILED' || err?.code === 'OCR_ERROR') {
+    // Re-throw explicit API / key / 404 errors immediately instead of hiding them
+    if (
+      err?.code === 'MISSING_API_KEY' ||
+      err?.code === 'INVALID_API_KEY' ||
+      err?.code === 'AUTH_ERROR' ||
+      err?.code === 'OCR_FAILED' ||
+      err?.code === 'OCR_ERROR' ||
+      (err?.code === 'ENDPOINT_404' && !clientApiKey)
+    ) {
       throw err;
     }
     // Only fall through to direct browser REST call if /api/ocr is unreachable AND clientApiKey is available

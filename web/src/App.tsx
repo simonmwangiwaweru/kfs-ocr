@@ -723,7 +723,7 @@ export default function App() {
         {/* VIEW 1: SCANNER SCREEN (Clean Centered Layout)       */}
         {/* ==================================================== */}
         {activeTab === 'scan' && (
-          <div className="flex-1 w-full max-w-xl mx-auto pb-24 md:pb-8 space-y-4">
+          <div className="flex-1 w-full max-w-xl mx-auto pb-28 md:pb-8 space-y-4">
             {/* Mode Selector */}
             <div className="grid grid-cols-3 gap-2.5">
               <button 
@@ -1560,37 +1560,67 @@ export default function App() {
                 </div>
 
                 {/* Live Server & API Key Status */}
-                <div className={`rounded-xl p-3 flex items-center justify-between border ${
+                <div className={`rounded-xl p-3 flex items-center justify-between gap-2 border ${
                   ocrStatus?.serverKeyConfigured || geminiKeyInput.trim()
                     ? 'bg-[#f2f4f3]/80 border-[#bec9bf]/35'
-                    : 'bg-amber-50 border-amber-200'
+                    : ocrStatus && !ocrStatus.reachable
+                      ? 'bg-red-50 border-red-200'
+                      : 'bg-amber-50 border-amber-200'
                 }`}>
-                  <div className="flex items-center gap-2.5">
-                    <span className="relative flex h-2.5 w-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="relative flex h-2.5 w-2.5 shrink-0">
                       <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
-                        ocrStatus?.serverKeyConfigured || geminiKeyInput.trim() ? 'bg-[#1f7a4d]' : 'bg-amber-500'
+                        ocrStatus?.serverKeyConfigured || geminiKeyInput.trim()
+                          ? 'bg-[#1f7a4d]'
+                          : ocrStatus && !ocrStatus.reachable
+                            ? 'bg-red-500'
+                            : 'bg-amber-500'
                       }`}></span>
                     </span>
-                    <div className="flex flex-col">
+                    <div className="flex flex-col min-w-0">
                       <span className="font-mono text-[11px] font-bold text-[#191c1c] leading-tight">
                         Live Gemini Vision OCR (/api/ocr)
                       </span>
-                      <span className="font-mono text-[10px] text-[#3f4941]">
+                      <span className="font-mono text-[10px] text-[#3f4941] leading-snug mt-0.5">
                         {ocrStatus?.serverKeyConfigured
                           ? 'Vercel Server GEMINI_API_KEY Active'
                           : geminiKeyInput.trim()
                             ? 'Using Personal Gemini API Key (Local)'
-                            : 'Needs GEMINI_API_KEY in Vercel or below'}
+                            : ocrStatus === null
+                              ? 'Checking server status...'
+                              : !ocrStatus.reachable
+                                ? '/api/ocr returned 404 (not deployed on this host)'
+                                : '/api/ocr reachable, but server GEMINI_API_KEY is missing'}
                       </span>
                     </div>
                   </div>
-                  <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                    ocrStatus?.serverKeyConfigured || geminiKeyInput.trim()
-                      ? 'bg-[#dcfce7] text-[#166534] border-[#bbf7d0]'
-                      : 'bg-amber-100 text-amber-800 border-amber-300'
-                  }`}>
-                    {ocrStatus?.serverKeyConfigured || geminiKeyInput.trim() ? 'READY' : 'SETUP NEEDED'}
-                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOcrStatus(null);
+                        checkOcrServerStatus().then(setOcrStatus);
+                      }}
+                      className="p-1.5 rounded-lg border border-[#bec9bf]/60 bg-white text-[#3f4941] hover:text-[#1f7a4d] cursor-pointer"
+                      title="Refresh /api/ocr status"
+                      aria-label="Refresh OCR server status"
+                    >
+                      <span className="material-symbols-outlined text-[15px]">refresh</span>
+                    </button>
+                    <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                      ocrStatus?.serverKeyConfigured || geminiKeyInput.trim()
+                        ? 'bg-[#dcfce7] text-[#166534] border-[#bbf7d0]'
+                        : ocrStatus && !ocrStatus.reachable
+                          ? 'bg-red-100 text-red-800 border-red-300'
+                          : 'bg-amber-100 text-amber-800 border-amber-300'
+                    }`}>
+                      {ocrStatus?.serverKeyConfigured || geminiKeyInput.trim()
+                        ? 'READY'
+                        : ocrStatus && !ocrStatus.reachable
+                          ? 'NO /api/ocr'
+                          : 'SETUP NEEDED'}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Optional API Key Override for Local / Direct Testing */}
