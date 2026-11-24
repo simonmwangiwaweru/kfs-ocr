@@ -1,15 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { ScanRecord, ScanRow, db, DocumentHeaderColumn } from './db';
-import { 
-  extractWithGeminiVision, 
-  getStoredGeminiKey, 
-  saveStoredGeminiKey, 
-  clearStoredGeminiKey, 
-  getStoredCloudVisionKey,
-  saveStoredCloudVisionKey,
-  testGeminiApiKey,
+import {
+  extractWithGeminiVision,
   checkOcrServerStatus,
+  clearLegacyClientKeys,
   prepareFileForOcr,
   type OcrServerStatus
 } from './gemini';
@@ -44,12 +39,7 @@ export default function App() {
   } | null>(null);
   const [showPhotoLightbox, setShowPhotoLightbox] = useState(false);
 
-  // API Key dialog / settings state
-  const [geminiKeyInput, setGeminiKeyInput] = useState('');
-  const [visionKeyInput, setVisionKeyInput] = useState('');
-  const [showKeyText, setShowKeyText] = useState(false);
-  const [showBackupKeyPanel, setShowBackupKeyPanel] = useState(false);
-  const [keyTestStatus, setKeyTestStatus] = useState<'idle' | 'testing' | 'valid' | 'invalid'>('idle');
+  // Settings state
   const [autoSyncMobile, setAutoSyncMobile] = useState(true);
 
   // Quick export modal toggle
@@ -68,9 +58,8 @@ export default function App() {
   };
 
   useEffect(() => {
+    clearLegacyClientKeys();
     loadDocuments();
-    setGeminiKeyInput(getStoredGeminiKey());
-    setVisionKeyInput(getStoredCloudVisionKey());
     checkOcrServerStatus().then(setOcrStatus);
 
     const handleOnline = () => setIsOffline(false);
@@ -96,24 +85,7 @@ export default function App() {
     }
   };
 
-  const handleSaveKeys = () => {
-    saveStoredGeminiKey(geminiKeyInput);
-    saveStoredCloudVisionKey(visionKeyInput);
-    if (geminiKeyInput.trim()) {
-      setShowBackupKeyPanel(false);
-    }
-    showToast('API key saved for this browser');
-  };
 
-  const handleTestKey = async () => {
-    if (!geminiKeyInput.trim()) {
-      setKeyTestStatus('invalid');
-      return;
-    }
-    setKeyTestStatus('testing');
-    const ok = await testGeminiApiKey(geminiKeyInput.trim());
-    setKeyTestStatus(ok ? 'valid' : 'invalid');
-  };
 
   const getDocumentHeaders = (doc: ScanRecord | null): DocumentHeaderColumn[] => {
     if (!doc) return [];
@@ -217,7 +189,7 @@ export default function App() {
       showToast('Document scanned & transcribed into 10×19 matrix!');
     } catch (err: any) {
       console.error('OCR Extraction error:', err);
-      const msg = String(err?.message || 'OCR failed. Check your Gemini API key or document clarity.');
+      const msg = String(err?.message || 'Scan failed. Please check the document clarity and try again.');
       setScanError(msg);
       showToast(msg);
     } finally {
@@ -814,31 +786,32 @@ export default function App() {
               </div>
             </div>
 
-            {/* OCR Error / Configuration Alert */}
+            {/* OCR Error Alert */}
             {scanError && (
-              <div className="bg-red-50 border border-red-200 rounded-2xl p-3.5 space-y-2 shadow-xs">
+              <div className="bg-red-50 border border-red-200 rounded-2xl p-3.5 space-y-2.5 shadow-xs">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-2 text-red-800">
                     <span className="material-symbols-outlined text-[20px] shrink-0 mt-0.5">error</span>
                     <div>
-                      <p className="font-headline text-[13px] font-bold">Live OCR Scan Failed</p>
+                      <p className="font-headline text-[13px] font-bold">Scan Could Not Be Completed</p>
                       <p className="font-mono text-[11px] text-red-700 mt-0.5 leading-relaxed">{scanError}</p>
                     </div>
                   </div>
                   <button
                     onClick={() => setScanError(null)}
-                    className="text-red-500 hover:text-red-700 p-0.5"
+                    className="text-red-500 hover:text-red-700 p-0.5 cursor-pointer"
                     aria-label="Dismiss error"
                   >
                     <span className="material-symbols-outlined text-[18px]">close</span>
                   </button>
                 </div>
                 <button
-                  onClick={() => setActiveTab('settings')}
+                  type="button"
+                  onClick={() => setScanError(null)}
                   className="px-3 py-1.5 rounded-lg bg-red-700 hover:bg-red-800 text-white font-mono text-[11px] font-bold inline-flex items-center gap-1.5 cursor-pointer"
                 >
-                  <span className="material-symbols-outlined text-[15px]">settings</span>
-                  <span>Check Station Settings & API Key</span>
+                  <span className="material-symbols-outlined text-[15px]">refresh</span>
+                  <span>Dismiss &amp; Try Again</span>
                 </button>
               </div>
             )}
@@ -1520,14 +1493,14 @@ export default function App() {
         {/* ==================================================== */}
         {activeTab === 'settings' && (
           <div className="flex-1 w-full max-w-xl mx-auto overflow-y-auto no-scrollbar pt-2 pb-28 space-y-4">
-            {/* CARD 1: OCR & API Connection */}
+            {/* CARD 1: Scanner Service */}
             <section className="tactile-card bg-white rounded-2xl p-4 shadow-sm border border-[#bec9bf]/30 space-y-3.5">
               <div className="flex items-center justify-between pb-2.5 border-b border-[#eceeed]">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-lg bg-[#e6f4ea] flex items-center justify-center text-[#1f7a4d] shrink-0">
                     <span className="material-symbols-outlined text-[19px]">document_scanner</span>
                   </div>
-                  <h2 className="font-headline text-[15.5px] font-bold text-[#191c1c]">OCR &amp; API Connection</h2>
+                  <h2 className="font-headline text-[15.5px] font-bold text-[#191c1c]">Scanner Service</h2>
                 </div>
                 <button
                   type="button"
@@ -1536,8 +1509,8 @@ export default function App() {
                     checkOcrServerStatus().then(setOcrStatus);
                   }}
                   className="p-1.5 rounded-lg border border-[#bec9bf]/60 bg-white text-[#3f4941] hover:text-[#1f7a4d] cursor-pointer"
-                  title="Refresh server status"
-                  aria-label="Refresh OCR server status"
+                  title="Refresh service status"
+                  aria-label="Refresh scanner service status"
                 >
                   <span className="material-symbols-outlined text-[16px]">refresh</span>
                 </button>
@@ -1545,126 +1518,46 @@ export default function App() {
 
               {/* Live Status Row */}
               <div className={`rounded-xl p-3 flex items-center justify-between gap-2 border ${
-                ocrStatus?.serverKeyConfigured || Boolean(getStoredGeminiKey())
+                ocrStatus?.ready
                   ? 'bg-[#f4f8f5] border-[#cde0d4]'
-                  : ocrStatus && !ocrStatus.reachable
-                    ? 'bg-red-50 border-red-200'
-                    : 'bg-amber-50 border-amber-200'
+                  : ocrStatus === null
+                    ? 'bg-amber-50 border-amber-200'
+                    : 'bg-red-50 border-red-200'
               }`}>
                 <div className="flex items-center gap-2.5 min-w-0">
                   <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                    ocrStatus?.serverKeyConfigured || Boolean(getStoredGeminiKey())
+                    ocrStatus?.ready
                       ? 'bg-[#1f7a4d]'
-                      : ocrStatus && !ocrStatus.reachable
-                        ? 'bg-red-500'
-                        : 'bg-amber-500'
+                      : ocrStatus === null
+                        ? 'bg-amber-500'
+                        : 'bg-red-500'
                   }`}></span>
                   <div className="min-w-0">
-                    <p className="font-mono text-[11.5px] font-bold text-[#191c1c]">OCR Service</p>
+                    <p className="font-mono text-[11.5px] font-bold text-[#191c1c]">Document OCR Engine</p>
                     <p className="font-mono text-[10.5px] text-[#3f4941] mt-0.5">
-                      {ocrStatus?.serverKeyConfigured
-                        ? 'Server key active (permanent)'
-                        : getStoredGeminiKey()
-                          ? 'Saved device key active'
-                          : ocrStatus === null
-                            ? 'Checking connection...'
-                            : !ocrStatus.reachable
-                              ? 'Endpoint /api/ocr missing (redeploy latest commit)'
-                              : 'Add GEMINI_API_KEY in Vercel or below'}
+                      {ocrStatus?.ready
+                        ? 'Online and ready — no personal setup needed'
+                        : ocrStatus === null
+                          ? 'Checking connection...'
+                          : !ocrStatus.reachable
+                            ? 'Service endpoint unreachable right now'
+                            : 'Waiting for server configuration'}
                     </p>
                   </div>
                 </div>
                 <span className={`font-mono text-[10px] font-bold px-2.5 py-1 rounded-full border shrink-0 ${
-                  ocrStatus?.serverKeyConfigured || Boolean(getStoredGeminiKey())
+                  ocrStatus?.ready
                     ? 'bg-[#dcfce7] text-[#166534] border-[#bbf7d0]'
-                    : ocrStatus && !ocrStatus.reachable
-                      ? 'bg-red-100 text-red-800 border-red-300'
-                      : 'bg-amber-100 text-amber-800 border-amber-300'
+                    : ocrStatus === null
+                      ? 'bg-amber-100 text-amber-800 border-amber-300'
+                      : 'bg-red-100 text-red-800 border-red-300'
                 }`}>
-                  {ocrStatus?.serverKeyConfigured || Boolean(getStoredGeminiKey())
+                  {ocrStatus?.ready
                     ? 'READY'
-                    : ocrStatus && !ocrStatus.reachable
-                      ? 'OFFLINE'
-                      : 'KEY NEEDED'}
+                    : ocrStatus === null
+                      ? 'CHECKING'
+                      : 'OFFLINE'}
                 </span>
-              </div>
-
-              {/* Collapsible Personal / Backup Key */}
-              <div className="pt-1 border-t border-[#eceeed]">
-                <button
-                  type="button"
-                  onClick={() => setShowBackupKeyPanel(!showBackupKeyPanel)}
-                  className="w-full py-1.5 flex items-center justify-between text-left cursor-pointer"
-                >
-                  <span className="font-mono text-[11.5px] font-bold text-[#191c1c]">
-                    {ocrStatus?.serverKeyConfigured ? 'Backup API Key (Optional)' : 'Personal API Key'}
-                  </span>
-                  <span className="material-symbols-outlined text-[18px] text-[#6f7a71]">
-                    {showBackupKeyPanel || (!ocrStatus?.serverKeyConfigured && !getStoredGeminiKey()) ? 'expand_less' : 'expand_more'}
-                  </span>
-                </button>
-
-                {(showBackupKeyPanel || (!ocrStatus?.serverKeyConfigured && !getStoredGeminiKey())) && (
-                  <div className="pt-2 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-[10.5px] text-[#6f7a71]">Saved permanently in this browser</span>
-                      <button
-                        type="button"
-                        onClick={() => setShowKeyText(!showKeyText)}
-                        className="font-mono text-[10.5px] text-[#1f7a4d] font-bold cursor-pointer"
-                      >
-                        {showKeyText ? 'Hide' : 'Show'}
-                      </button>
-                    </div>
-                    <input
-                      type={showKeyText ? 'text' : 'password'}
-                      value={geminiKeyInput}
-                      onChange={(e) => {
-                        setGeminiKeyInput(e.target.value);
-                        setKeyTestStatus('idle');
-                      }}
-                      placeholder="Paste Gemini API key (AIza...)"
-                      className="w-full bg-[#f4f6f5] border border-[#bec9bf]/60 rounded-xl px-3 py-2 font-mono text-[12px] text-[#191c1c] focus:outline-none focus:ring-2 focus:ring-[#1f7a4d]"
-                    />
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={handleTestKey}
-                        disabled={keyTestStatus === 'testing'}
-                        className="px-3 py-1.5 rounded-xl border border-[#bec9bf] bg-white font-mono text-[11px] font-bold text-[#191c1c] hover:bg-[#f8faf9] cursor-pointer"
-                      >
-                        {keyTestStatus === 'testing' ? 'Testing...' : 'Test'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleSaveKeys}
-                        className="px-3.5 py-1.5 rounded-xl bg-[#1f7a4d] text-white font-mono text-[11px] font-bold hover:bg-[#17613c] cursor-pointer"
-                      >
-                        Save Key
-                      </button>
-                      {getStoredGeminiKey() && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            clearStoredGeminiKey();
-                            setGeminiKeyInput('');
-                            setKeyTestStatus('idle');
-                            showToast('Browser key removed');
-                          }}
-                          className="px-2.5 py-1.5 rounded-xl text-red-600 font-mono text-[11px] font-bold hover:bg-red-50 cursor-pointer"
-                        >
-                          Clear
-                        </button>
-                      )}
-                      {keyTestStatus === 'valid' && (
-                        <span className="font-mono text-[10.5px] font-bold text-emerald-700">Valid</span>
-                      )}
-                      {keyTestStatus === 'invalid' && (
-                        <span className="font-mono text-[10.5px] font-bold text-red-600">Invalid</span>
-                      )}
-                    </div>
-                  </div>
-                )}
               </div>
             </section>
 

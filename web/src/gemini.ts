@@ -73,60 +73,16 @@ export interface GeminiExtractionResult {
 
 export interface OcrServerStatus {
   reachable: boolean;
-  serverKeyConfigured: boolean;
-  visionKeyConfigured: boolean;
+  ready: boolean;
 }
 
-const STORAGE_KEY = 'kfs_gemini_api_key';
-const CLOUD_VISION_KEY = 'kfs_cloud_vision_key';
-
-export function getStoredGeminiKey(): string {
+// Ensure no legacy browser-stored API keys linger from earlier builds
+export function clearLegacyClientKeys(): void {
   try {
-    return localStorage.getItem(STORAGE_KEY) || (import.meta as any).env?.VITE_GEMINI_API_KEY || '';
+    localStorage.removeItem('kfs_gemini_api_key');
+    localStorage.removeItem('kfs_cloud_vision_key');
   } catch {
-    return '';
-  }
-}
-
-export function saveStoredGeminiKey(key: string): void {
-  try {
-    const trimmed = key.trim();
-    if (trimmed) {
-      localStorage.setItem(STORAGE_KEY, trimmed);
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-  } catch (e) {
-    console.error('Failed to save API key:', e);
-  }
-}
-
-export function clearStoredGeminiKey(): void {
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch (e) {
-    console.error('Failed to clear API key:', e);
-  }
-}
-
-export function getStoredCloudVisionKey(): string {
-  try {
-    return localStorage.getItem(CLOUD_VISION_KEY) || (import.meta as any).env?.VITE_GOOGLE_VISION_KEY || '';
-  } catch {
-    return '';
-  }
-}
-
-export function saveStoredCloudVisionKey(key: string): void {
-  try {
-    const trimmed = key.trim();
-    if (trimmed) {
-      localStorage.setItem(CLOUD_VISION_KEY, trimmed);
-    } else {
-      localStorage.removeItem(CLOUD_VISION_KEY);
-    }
-  } catch (e) {
-    console.error('Failed to save Vision key:', e);
+    // ignore storage access issues
   }
 }
 
@@ -134,81 +90,15 @@ export async function checkOcrServerStatus(): Promise<OcrServerStatus> {
   try {
     const res = await fetch('/api/ocr', { method: 'GET', cache: 'no-store' });
     if (!res.ok) {
-      return { reachable: false, serverKeyConfigured: false, visionKeyConfigured: false };
+      return { reachable: false, ready: false };
     }
     const data = await res.json().catch(() => ({}));
     return {
       reachable: true,
-      serverKeyConfigured: Boolean(data?.serverKeyConfigured),
-      visionKeyConfigured: Boolean(data?.visionKeyConfigured)
+      ready: Boolean(data?.serverKeyConfigured)
     };
   } catch {
-    return { reachable: false, serverKeyConfigured: false, visionKeyConfigured: false };
-  }
-}
-
-const PREFERRED_GEMINI_MODELS = [
-  'gemini-3-flash-preview',
-  'gemini-3.1-pro-preview',
-  'gemini-3.1-flash-lite-preview'
-];
-
-function scoreGeminiModel(name: string): number {
-  const lower = name.toLowerCase();
-  if (/embedding|aqa|imagen|veo|tts|audio|robotics|computer-use|lyria|gemma/.test(lower)) {
-    return -1;
-  }
-  let score = 0;
-  if (/gemini-(4|3\.9|3\.8|3\.6|3\.5|3\.1|3)/.test(lower)) score += 100;
-  else if (/gemini-flash-latest|gemini-pro-latest/.test(lower)) score += 60;
-  else if (/gemini-2\.5/.test(lower)) score += 20;
-  if (lower.includes('flash')) score += 25;
-  if (lower.includes('pro')) score += 20;
-  if (lower.includes('lite')) score -= 5;
-  if (lower.includes('preview')) score += 2;
-  return score;
-}
-
-async function discoverFallbackModels(apiKey: string, triedSet: Set<string>): Promise<string[]> {
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`,
-      { method: 'GET', cache: 'no-store' }
-    );
-    if (!res.ok) return [];
-    const data = await res.json().catch(() => ({}));
-    const list: Array<{ name?: string; supportedGenerationMethods?: string[] }> = Array.isArray(data?.models)
-      ? data.models
-      : [];
-    return list
-      .filter(
-        (m) =>
-          Array.isArray(m?.supportedGenerationMethods) &&
-          m.supportedGenerationMethods.includes('generateContent') &&
-          typeof m?.name === 'string'
-      )
-      .map((m) => (m.name as string).replace(/^models\//, ''))
-      .filter((name) => !triedSet.has(name) && scoreGeminiModel(name) > 0)
-      .sort((a, b) => scoreGeminiModel(b) - scoreGeminiModel(a))
-      .slice(0, 3);
-  } catch {
-    return [];
-  }
-}
-
-export async function testGeminiApiKey(apiKey: string): Promise<boolean> {
-  const trimmed = apiKey.trim();
-  if (!trimmed) return false;
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(trimmed)}`,
-      { method: 'GET', cache: 'no-store' }
-    );
-    if (!res.ok) return false;
-    const data = await res.json().catch(() => ({}));
-    return Array.isArray(data?.models) && data.models.length > 0;
-  } catch {
-    return false;
+    return { reachable: false, ready: false };
   }
 }
 
@@ -410,103 +300,6 @@ export async function prepareUploadForOcr(dataUrl: string): Promise<string> {
   });
 }
 
-const CLIENT_FALLBACK_PROMPT = `
-You are an expert OCR & Document Digitization Engine specialized in Kenya Forest Service (KFS) / KEFRI Stumpage Appraisal Forms (Form No. AGW-85-01).
-Analyze the provided document image or PDF carefully.
-1. Scans may be rotated 90/180/270 degrees. Always locate the printed ROW (1..10) and COLUMN (1..19) axes and header fields first.
-2. Read ONLY values physically written on THIS sheet. Never guess or reuse example values; use "" if a field or cell is empty.
-3. Extract primary/blue ink cell entries into "cells" ("col_1".."col_19") and any red-ink entries written inside/above cells into "heightCells" ("col_1".."col_19"). Leave "" when no ink exists.
-4. Strictly disambiguate '7' (flat horizontal top roof + downward diagonal stem, e.g. "178") vs '9' (closed rounded top loop, e.g. "198").
-Return ONLY valid JSON with title, documentType, institution, subHeader, personName, idNumber, plotCode, forestStation, observerName, summary, metadataFields, tableHeaders (col_1..col_19), visibilityIssues, and rows (rowNumber 1..10 with cells, heightCells, cellConfidence, candidateValues).
-`;
-
-function normalizeClientResult(parsed: any): GeminiExtractionResult {
-  const headers: DocumentHeaderColumn[] = Array.isArray(parsed.tableHeaders) && parsed.tableHeaders.length === 19
-    ? parsed.tableHeaders
-    : Array.from({ length: 19 }, (_, i) => ({
-        key: `col_${i + 1}`,
-        label: `Col ${i + 1}`
-      }));
-
-  const rawRows = Array.isArray(parsed.rows) ? parsed.rows : [];
-  const rows: GeminiRowExtraction[] = [];
-
-  for (let idx = 0; idx < Math.max(10, rawRows.length); idx++) {
-    const r = rawRows[idx] || {};
-    const rowNum = Number(r.rowNumber) || idx + 1;
-    const cells: Record<string, string> = {};
-    const heightCells: Record<string, string> = {};
-    const cellConf: Record<string, number> = {};
-
-    headers.forEach((h) => {
-      const rawVal = r.cells?.[h.key] ?? r[h.key] ?? '';
-      const cleanVal = rawVal === null || rawVal === undefined ? '' : String(rawVal).trim();
-      cells[h.key] = cleanVal;
-
-      const rawH = r.heightCells?.[h.key] ?? r.heights?.[h.key] ?? '';
-      const cleanH = rawH === null || rawH === undefined || rawH === 'undefined' || rawH === '-' || rawH === '—'
-        ? ''
-        : String(rawH).trim();
-      heightCells[h.key] = cleanH;
-
-      const conf = r.cellConfidence?.[h.key] ?? r.confidence?.[h.key] ?? r.candidateValues?.[h.key]?.[0]?.probability;
-      cellConf[h.key] = typeof conf === 'number' && !Number.isNaN(conf) ? conf : (cleanVal ? 0.95 : 1.0);
-    });
-
-    const isUncertain = Object.values(cellConf).some((c) => c < 0.85);
-    rows.push({
-      rowNumber: rowNum,
-      treeNumber: String(r.treeNumber || `Tree #${(rowNum - 1) * 19 + 1}`),
-      speciesCode: r.speciesCode || '',
-      dbhCm: cells['col_1'] || r.dbhCm || '',
-      heightM: heightCells['col_1'] || r.heightM || '',
-      healthStatus: r.healthStatus || '',
-      notes: r.notes || '',
-      cells,
-      heightCells,
-      cellConfidence: cellConf,
-      candidateValues: r.candidateValues || {},
-      confidence: {
-        treeNumber: 0.98,
-        speciesCode: 0.95,
-        dbhCm: cellConf['col_1'] ?? 0.95,
-        heightM: 0.95
-      },
-      flags: {
-        dbhUncertain: (cellConf['col_1'] ?? 1.0) < 0.85,
-        heightUncertain: isUncertain
-      },
-      comments: r.comments || [],
-      isVerified: false
-    });
-  }
-
-  const metadataFields: DocumentMetadataItem[] = Array.isArray(parsed.metadataFields) ? parsed.metadataFields : [];
-  const findMeta = (needle: string) =>
-    metadataFields.find((m) => String(m?.label || '').toLowerCase().includes(needle))?.value || '';
-
-  const forestStation = String(parsed.forestStation || findMeta('station') || '').trim();
-  const plotCode = String(parsed.plotCode || findMeta('compartment') || findMeta('plot') || '').trim();
-  const observerName = String(parsed.observerName || parsed.personName || findMeta('officer') || '').trim();
-
-  return {
-    title: String(parsed.title || (plotCode ? `Form AGW-85-01 - ${plotCode}` : 'KFS Stumpage Appraisal Form AGW-85-01')).trim(),
-    documentType: parsed.documentType || 'forestry_inventory',
-    institution: String(parsed.institution || 'Kenya Forest Service (KFS)').trim(),
-    subHeader: String(parsed.subHeader || 'Stumpage Appraisal Tally Form AGW-85-01').trim(),
-    personName: String(parsed.personName || observerName).trim(),
-    idNumber: String(parsed.idNumber || 'AGW-85-01').trim(),
-    plotCode,
-    forestStation,
-    observerName,
-    summary: String(parsed.summary || '').trim(),
-    metadataFields,
-    tableHeaders: headers,
-    visibilityIssues: Array.isArray(parsed.visibilityIssues) ? parsed.visibilityIssues : [],
-    rows
-  };
-}
-
 export async function extractWithGeminiVision(
   imageDataUrl: string,
   onStepChange?: (step: string) => void
@@ -514,134 +307,30 @@ export async function extractWithGeminiVision(
   onStepChange?.('Optimizing sheet image & checking alignment...');
   const preparedDataUrl = await prepareUploadForOcr(imageDataUrl);
 
-  const clientApiKey = getStoredGeminiKey();
-  const clientVisionKey = getStoredCloudVisionKey();
+  onStepChange?.('Running live 10×19 OCR extraction...');
 
-  onStepChange?.('Running live Gemini Vision 10×19 OCR extraction...');
+  const serverRes = await fetch('/api/ocr', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      imageDataUrl: preparedDataUrl
+    })
+  });
 
-  try {
-    const serverRes = await fetch('/api/ocr', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        imageDataUrl: preparedDataUrl,
-        clientApiKey: clientApiKey || undefined,
-        clientVisionKey: clientVisionKey || undefined
-      })
-    });
+  const payload = await serverRes.json().catch(() => null);
 
-    const payload = await serverRes.json().catch(() => null);
-
-    if (serverRes.ok && payload?.ok && payload?.result) {
-      onStepChange?.('Structuring 10×19 dual-ink matrix...');
-      return payload.result as GeminiExtractionResult;
-    }
-
-    // If /api/ocr exists and returned a clear error (e.g. MISSING_API_KEY, INVALID_API_KEY, OCR_FAILED)
-    if (payload && payload.error) {
-      const err = new Error(payload.error) as Error & { code?: string };
-      err.code = payload.code || 'OCR_ERROR';
-      throw err;
-    }
-
-    if (serverRes.status === 404) {
-      if (!clientApiKey) {
-        const err = new Error(
-          'OCR endpoint /api/ocr returned 404 (not deployed). Push the latest code (including web/api/ocr.js), or paste your Gemini API key in Station Settings as an immediate backup.'
-        ) as Error & { code?: string };
-        err.code = 'ENDPOINT_404';
-        throw err;
-      }
-    } else {
-      throw new Error(`OCR service failed with HTTP ${serverRes.status}`);
-    }
-  } catch (err: any) {
-    // Re-throw explicit API / key / 404 errors immediately instead of hiding them
-    if (
-      err?.code === 'MISSING_API_KEY' ||
-      err?.code === 'INVALID_API_KEY' ||
-      err?.code === 'AUTH_ERROR' ||
-      err?.code === 'OCR_FAILED' ||
-      err?.code === 'OCR_ERROR' ||
-      (err?.code === 'ENDPOINT_404' && !clientApiKey)
-    ) {
-      throw err;
-    }
-    // Only fall through to direct browser REST call if /api/ocr is unreachable AND clientApiKey is available
-    if (!clientApiKey) {
-      throw new Error(err?.message || 'OCR endpoint unreachable and no Gemini API key configured in Station Settings.');
-    }
+  if (serverRes.ok && payload?.ok && payload?.result) {
+    onStepChange?.('Structuring 10×19 dual-ink matrix...');
+    return payload.result as GeminiExtractionResult;
   }
 
-  // Direct client fallback only when /api/ocr is unavailable (404/static host) and user supplied a key
-  if (!clientApiKey) {
-    throw new Error('MISSING_API_KEY: Add GEMINI_API_KEY in Vercel Environment Variables or enter an API key in Station Settings.');
+  if (payload && payload.error) {
+    throw new Error(String(payload.error));
   }
 
-  const match = preparedDataUrl.match(/^data:([^;]+);base64,(.+)$/);
-  const mimeType = match ? match[1] : 'image/jpeg';
-  const base64Data = match ? match[2] : preparedDataUrl;
-
-  const requestPayload = {
-    contents: [
-      {
-        parts: [
-          { text: CLIENT_FALLBACK_PROMPT },
-          { inline_data: { mime_type: mimeType, data: base64Data } }
-        ]
-      }
-    ],
-    generationConfig: {
-      temperature: 0.05,
-      response_mime_type: 'application/json'
-    }
-  };
-
-  const tryClientModel = async (model: string): Promise<GeminiExtractionResult> => {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(clientApiKey)}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestPayload)
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData?.error?.message || `API error ${response.status}: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!rawText) throw new Error(`Empty response received from ${model}`);
-
-    const cleaned = rawText.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
-    const parsed = JSON.parse(cleaned);
-    return normalizeClientResult(parsed);
-  };
-
-  const triedModels = new Set<string>();
-  let lastError: Error | null = null;
-
-  for (const model of PREFERRED_GEMINI_MODELS) {
-    triedModels.add(model);
-    try {
-      return await tryClientModel(model);
-    } catch (err: any) {
-      lastError = err;
-    }
+  if (serverRes.status === 404) {
+    throw new Error('Scanner server endpoint (/api/ocr) is not deployed yet.');
   }
 
-  const discoveredModels = await discoverFallbackModels(clientApiKey, triedModels);
-  for (const model of discoveredModels) {
-    triedModels.add(model);
-    try {
-      return await tryClientModel(model);
-    } catch (err: any) {
-      lastError = err;
-    }
-  }
-
-  throw lastError || new Error('Failed to process document with Gemini Vision.');
+  throw new Error(`Scanner service returned HTTP ${serverRes.status}. Please try again.`);
 }

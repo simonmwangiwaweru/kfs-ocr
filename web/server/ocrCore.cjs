@@ -120,29 +120,26 @@ function findEnvCaseInsensitive(targetNames, env = {}) {
   return '';
 }
 
-function resolveKeys(body = {}, env = {}) {
+function resolveKeys(env = {}) {
   const serverKey = findEnvCaseInsensitive(
     ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'VITE_GEMINI_API_KEY'],
     env
   );
 
-  const clientKey = typeof body.clientApiKey === 'string' ? body.clientApiKey.trim() : '';
-
   const serverVisionKey = findEnvCaseInsensitive(
     ['GOOGLE_VISION_API_KEY', 'VITE_GOOGLE_VISION_KEY'],
     env
   );
-  const clientVisionKey = typeof body.clientVisionKey === 'string' ? body.clientVisionKey.trim() : '';
 
   return {
-    geminiKey: serverKey || clientKey,
+    geminiKey: serverKey,
     usingServerKey: Boolean(serverKey),
-    visionKey: serverVisionKey || clientVisionKey
+    visionKey: serverVisionKey
   };
 }
 
 function getOcrStatus(env = {}) {
-  const { usingServerKey, visionKey } = resolveKeys({}, env);
+  const { usingServerKey, visionKey } = resolveKeys(env);
   return {
     status: 200,
     json: {
@@ -268,14 +265,14 @@ function formatExtractionResult(parsed) {
 }
 
 async function handleOcr(body = {}, env = {}) {
-  const { geminiKey, visionKey } = resolveKeys(body, env);
+  const { geminiKey, visionKey } = resolveKeys(env);
   if (!geminiKey) {
     return {
       status: 503,
       json: {
         ok: false,
         code: 'MISSING_API_KEY',
-        error: 'Server GEMINI_API_KEY is not configured. Add GEMINI_API_KEY in Vercel Settings -> Environment Variables (or save your key in Station Settings).'
+        error: 'Scanner service is not configured on the server yet. Please contact the site administrator.'
       }
     };
   }
@@ -337,132 +334,150 @@ async function handleOcr(body = {}, env = {}) {
     }
   };
 
-const PREFERRED_GEMINI_MODELS = [
-  'gemini-3-flash-preview',
-  'gemini-3.1-pro-preview',
-  'gemini-3.1-flash-lite-preview'
-];
+  const FALLBACK_GEMINI_MODELS = [
+    'gemini-3.8-flash',
+    'gemini-3.6-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-3-flash-preview',
+    'gemini-flash-latest'
+  ];
 
-function scoreGeminiModel(name) {
-  const lower = name.toLowerCase();
-  if (/embedding|aqa|imagen|veo|tts|audio|robotics|computer-use|lyria|gemma/.test(lower)) {
-    return -1;
-  }
-  let score = 0;
-  if (/gemini-(4|3\.9|3\.8|3\.6|3\.5|3\.1|3)/.test(lower)) score += 100;
-  else if (/gemini-flash-latest|gemini-pro-latest/.test(lower)) score += 60;
-  else if (/gemini-2\.5/.test(lower)) score += 20;
-  if (lower.includes('flash')) score += 25;
-  if (lower.includes('pro')) score += 20;
-  if (lower.includes('lite')) score -= 5;
-  if (lower.includes('preview')) score += 2;
-  return score;
-}
-
-async function discoverFallbackModels(geminiKey, triedSet) {
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(geminiKey)}`
-    );
-    if (!res.ok) return [];
-    const data = await res.json().catch(() => ({}));
-    const list = Array.isArray(data?.models) ? data.models : [];
-    return list
-      .filter(
-        (m) =>
-          Array.isArray(m?.supportedGenerationMethods) &&
-          m.supportedGenerationMethods.includes('generateContent') &&
-          typeof m?.name === 'string'
-      )
-      .map((m) => m.name.replace(/^models\//, ''))
-      .filter((name) => !triedSet.has(name) && scoreGeminiModel(name) > 0)
-      .sort((a, b) => scoreGeminiModel(b) - scoreGeminiModel(a))
-      .slice(0, 3);
-  } catch {
-    return [];
-  }
-}
-
-async function tryGenerateWithModel(model, geminiKey, requestPayload) {
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(geminiKey)}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestPayload)
+  function scoreGeminiModel(name) {
+    const lower = name.toLowerCase();
+    // Exclude deprecated 1.x / 2.x models and non-multimodal specialized models
+    if (
+      /gemini-(1\.|2\.0|2\.5)/.test(lower) ||
+      /embedding|aqa|imagen|veo|tts|audio|robotics|computer-use|lyria|gemma|deep-research/.test(lower)
+    ) {
+      return -1;
     }
-  );
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    const apiMsg = errorData?.error?.message || `Gemini API error ${response.status}: ${response.statusText}`;
-    const status = response.status === 400 || response.status === 401 || response.status === 403 || response.status === 429
-      ? response.status
-      : 502;
-    if (response.status === 400 && /api key/i.test(apiMsg)) {
-      return { fatal: { status: 401, json: { ok: false, code: 'INVALID_API_KEY', error: apiMsg } } };
-    }
-    if (response.status === 401 || response.status === 403) {
-      return { fatal: { status: response.status, json: { ok: false, code: 'AUTH_ERROR', error: apiMsg } } };
-    }
-    return { error: apiMsg, status };
+    // Prefer fast, free-tier-eligible Gemini 3+ / 4+ Flash models first
+    if (lower === 'gemini-3.8-flash') return 500;
+    if (lower === 'gemini-3.6-flash') return 480;
+    if (lower === 'gemini-3.5-flash-lite') return 460;
+    if (lower === 'gemini-3-flash-preview') return 440;
+    if (lower === 'gemini-flash-latest') return 420;
+
+    let score = 0;
+    if (/gemini-4/.test(lower)) score += 350;
+    else if (/gemini-3\./.test(lower)) score += 320;
+    else if (/gemini-3/.test(lower)) score += 300;
+    else if (/latest/.test(lower)) score += 200;
+    else return -1;
+
+    if (lower.includes('flash')) score += 60;
+    if (lower.includes('lite')) score -= 10;
+    if (lower.includes('pro')) score += 10; // Pro ranked after Flash since free keys often lack Pro quota
+    if (lower.includes('preview')) score -= 2;
+    return score;
   }
 
-  const data = await response.json();
-  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!rawText) {
-    return { error: `Empty response received from ${model}.`, status: 502 };
-  }
+  async function selectCandidateModels() {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(geminiKey)}`
+      );
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const list = Array.isArray(data?.models) ? data.models : [];
+        const live = list
+          .filter(
+            (m) =>
+              Array.isArray(m?.supportedGenerationMethods) &&
+              m.supportedGenerationMethods.includes('generateContent') &&
+              typeof m?.name === 'string'
+          )
+          .map((m) => m.name.replace(/^models\//, ''))
+          .filter((name) => scoreGeminiModel(name) > 0)
+          .sort((a, b) => scoreGeminiModel(b) - scoreGeminiModel(a));
 
-  const cleaned = rawText.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
-  const parsed = JSON.parse(cleaned);
-  const formatted = formatExtractionResult(parsed);
-
-  return {
-    success: {
-      status: 200,
-      json: {
-        ok: true,
-        model,
-        result: formatted
+        if (live.length > 0) {
+          return Array.from(new Set(live)).slice(0, 4);
+        }
+      } else {
+        const errBody = await res.json().catch(() => ({}));
+        const errMsg = errBody?.error?.message || '';
+        if (res.status === 400 && /api key/i.test(errMsg)) {
+          return { fatal: { status: 401, json: { ok: false, code: 'INVALID_API_KEY', error: errMsg } } };
+        }
+        if (res.status === 401 || res.status === 403) {
+          return { fatal: { status: res.status, json: { ok: false, code: 'AUTH_ERROR', error: errMsg } } };
+        }
       }
+    } catch {
+      // Fall through to default model list
     }
-  };
-}
+    return FALLBACK_GEMINI_MODELS;
+  }
 
-  const triedModels = new Set();
-  let lastErrorMsg = 'Failed to extract data with Gemini Vision.';
+  async function tryGenerateWithModel(model) {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(geminiKey)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestPayload)
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const apiMsg = errorData?.error?.message || `Gemini API error ${response.status}: ${response.statusText}`;
+      const status = response.status === 400 || response.status === 401 || response.status === 403 || response.status === 429
+        ? response.status
+        : 502;
+      if (response.status === 400 && /api key/i.test(apiMsg)) {
+        return { fatal: { status: 401, json: { ok: false, code: 'INVALID_API_KEY', error: apiMsg } } };
+      }
+      if (response.status === 401 || response.status === 403) {
+        return { fatal: { status: response.status, json: { ok: false, code: 'AUTH_ERROR', error: apiMsg } } };
+      }
+      return { error: apiMsg, status };
+    }
+
+    const data = await response.json();
+    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!rawText) {
+      return { error: `Empty response received from ${model}.`, status: 502 };
+    }
+
+    const cleaned = rawText.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+    const parsed = JSON.parse(cleaned);
+    const formatted = formatExtractionResult(parsed);
+
+    return {
+      success: {
+        status: 200,
+        json: {
+          ok: true,
+          model,
+          result: formatted
+        }
+      }
+    };
+  }
+
+  const candidateResult = await selectCandidateModels();
+  if (candidateResult && candidateResult.fatal) {
+    return candidateResult.fatal;
+  }
+  const candidateModels = Array.isArray(candidateResult) ? candidateResult : FALLBACK_GEMINI_MODELS;
+
+  const attemptErrors = [];
   let lastStatus = 502;
 
-  for (const model of PREFERRED_GEMINI_MODELS) {
-    triedModels.add(model);
+  for (const model of candidateModels) {
     try {
-      const outcome = await tryGenerateWithModel(model, geminiKey, requestPayload);
+      const outcome = await tryGenerateWithModel(model);
       if (outcome.fatal) return outcome.fatal;
       if (outcome.success) return outcome.success;
       if (outcome.error) {
-        lastErrorMsg = outcome.error;
+        attemptErrors.push(`${model}: ${outcome.error}`);
         lastStatus = outcome.status || 502;
       }
     } catch (err) {
-      lastErrorMsg = err?.message || String(err);
-    }
-  }
-
-  // Dynamic fallback: query ListModels for whatever vision-capable models are enabled on this API key
-  const discoveredModels = await discoverFallbackModels(geminiKey, triedModels);
-  for (const model of discoveredModels) {
-    triedModels.add(model);
-    try {
-      const outcome = await tryGenerateWithModel(model, geminiKey, requestPayload);
-      if (outcome.fatal) return outcome.fatal;
-      if (outcome.success) return outcome.success;
-      if (outcome.error) {
-        lastErrorMsg = outcome.error;
-        lastStatus = outcome.status || 502;
-      }
-    } catch (err) {
-      lastErrorMsg = err?.message || String(err);
+      attemptErrors.push(`${model}: ${err?.message || String(err)}`);
     }
   }
 
@@ -471,7 +486,7 @@ async function tryGenerateWithModel(model, geminiKey, requestPayload) {
     json: {
       ok: false,
       code: 'OCR_FAILED',
-      error: lastErrorMsg
+      error: attemptErrors[0] || 'Failed to extract data with Gemini Vision.'
     }
   };
 }

@@ -1,3 +1,6 @@
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
 const { handleOcr, getOcrStatus } = require('../server/ocrCore.cjs');
 
 async function readJsonBody(req) {
@@ -15,7 +18,7 @@ async function readJsonBody(req) {
   return raw ? JSON.parse(raw) : {};
 }
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
   if (req.method === 'GET') {
@@ -38,4 +41,4 @@ module.exports = async function handler(req, res) {
       error: err && err.message ? err.message : 'Invalid JSON request payload.'
     });
   }
-};
+}
