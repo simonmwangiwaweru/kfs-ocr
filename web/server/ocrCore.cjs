@@ -111,7 +111,7 @@ function findEnvCaseInsensitive(targetNames, env = {}) {
   return '';
 }
 
-const ENGINE_VERSION = 'v4.2-turbo-flash';
+const ENGINE_VERSION = 'v4.3-resilient-flash';
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = 22000) {
   const controller = new AbortController();
@@ -518,13 +518,16 @@ async function handleOcr(body = {}, env = {}) {
   }
 
   const FALLBACK_GEMINI_MODELS = [
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
+    'gemini-3.5-flash-lite',
     'gemini-3.8-flash',
-    'gemini-3.6-flash'
+    'gemini-4-hydrogen'
   ];
 
   function scoreGeminiModel(name) {
     const lower = name.toLowerCase();
-    // Exclude deprecated 1.x / 2.x models, generic aliases, and non-multimodal specialized models
+    // Exclude deprecated 1.x / 2.x models and non-multimodal specialized models
     if (
       /gemini-(1\.|2\.0|2\.5)/.test(lower) ||
       /embedding|aqa|imagen|veo|tts|audio|robotics|computer-use|lyria|gemma|deep-research/.test(lower)
@@ -532,10 +535,13 @@ async function handleOcr(body = {}, env = {}) {
       return -1;
     }
 
-    // Prefer fast, free-tier-eligible Gemini 3+ / 4+ Flash models first
-    if (lower === 'gemini-3.8-flash') return 500;
-    if (lower === 'gemini-3.6-flash') return 480;
-    if (lower === 'gemini-3.5-flash-lite') return 460;
+    // Prefer GA Flash & high-capacity Flash-Lite models before high-demand cutting-edge models
+    if (lower === 'gemini-3.7-flash') return 540;
+    if (lower === 'gemini-3.6-flash') return 520;
+    if (lower === 'gemini-3.5-flash-lite') return 510;
+    if (lower === 'gemini-3.8-flash') return 495;
+    if (lower === 'gemini-4-hydrogen') return 485;
+    if (lower === 'gemini-3.1-flash-lite') return 475;
     if (lower === 'gemini-3-flash-preview') return 440;
 
     let score = 0;
@@ -545,10 +551,17 @@ async function handleOcr(body = {}, env = {}) {
     else return -1;
 
     if (lower.includes('flash')) score += 60;
-    if (lower.includes('lite')) score -= 10;
-    if (lower.includes('pro')) score += 10; // Pro ranked after Flash since free keys often lack Pro quota
-    if (lower.includes('preview')) score -= 2;
+    if (lower.includes('hydrogen')) score += 50;
+    if (lower.includes('lite')) score += 10;
+    if (lower.includes('pro')) score -= 20; // Free-tier keys frequently lack Pro quota
+    if (lower.includes('preview')) score -= 15;
     return score;
+  }
+
+  function getModelBaseFamily(name) {
+    return name
+      .toLowerCase()
+      .replace(/-(preview|exp|experimental|latest|\d{3}|\d{2}-\d{2})$/i, '');
   }
 
   async function selectCandidateModels() {
@@ -573,7 +586,18 @@ async function handleOcr(body = {}, env = {}) {
           .sort((a, b) => scoreGeminiModel(b) - scoreGeminiModel(a));
 
         if (live.length > 0) {
-          return Array.from(new Set(live)).slice(0, 2);
+          // Pick up to 5 distinct model families so a 503 spike on one cluster fails over cleanly
+          const picked = [];
+          const seenFamilies = new Set();
+          for (const modelName of live) {
+            const fam = getModelBaseFamily(modelName);
+            if (!seenFamilies.has(fam)) {
+              seenFamilies.add(fam);
+              picked.push(modelName);
+              if (picked.length >= 5) break;
+            }
+          }
+          return picked;
         }
       } else {
         const errBody = await res.json().catch(() => ({}));
@@ -586,12 +610,12 @@ async function handleOcr(body = {}, env = {}) {
         }
       }
     } catch {
-      // Fall through to fast default model list
+      // Fall through to default model list
     }
     return FALLBACK_GEMINI_MODELS;
   }
 
-  async function tryGenerateWithModel(model, includeThinking = true, timeoutMs = 22000) {
+  async function tryGenerateWithModel(model, includeThinking = true, timeoutMs = 20000) {
     const response = await fetchWithTimeout(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(geminiKey)}`,
       {
@@ -605,11 +629,11 @@ async function handleOcr(body = {}, env = {}) {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       const apiMsg = errorData?.error?.message || `Gemini API error ${response.status}: ${response.statusText}`;
-      const status = response.status === 400 || response.status === 401 || response.status === 403 || response.status === 429
+      const status = [400, 401, 403, 429, 503].includes(response.status)
         ? response.status
         : 502;
-      if (response.status === 400 && includeThinking && /thinking/i.test(apiMsg)) {
-        return await tryGenerateWithModel(model, false, Math.max(12000, timeoutMs - 2000));
+      if (response.status === 400 && includeThinking && /thinking|budget|unsupported/i.test(apiMsg)) {
+        return await tryGenerateWithModel(model, false, Math.max(10000, timeoutMs - 2000));
       }
       if (response.status === 400 && /api key/i.test(apiMsg)) {
         return { fatal: { status: 401, json: { ok: false, code: 'INVALID_API_KEY', error: apiMsg } } };
@@ -617,7 +641,8 @@ async function handleOcr(body = {}, env = {}) {
       if (response.status === 401 || response.status === 403) {
         return { fatal: { status: response.status, json: { ok: false, code: 'AUTH_ERROR', error: apiMsg } } };
       }
-      return { error: apiMsg, status };
+      const retryable = response.status === 503 || response.status === 429 || /high demand|overload|unavailable/i.test(apiMsg);
+      return { error: apiMsg, status, retryable };
     }
 
     const data = await response.json();
@@ -650,6 +675,7 @@ async function handleOcr(body = {}, env = {}) {
   const candidateModels = Array.isArray(candidateResult) ? candidateResult : FALLBACK_GEMINI_MODELS;
 
   const attemptErrors = [];
+  const retryableModels = [];
   let lastStatus = 502;
 
   for (const model of candidateModels) {
@@ -658,7 +684,7 @@ async function handleOcr(body = {}, env = {}) {
     if (remainingBudget < 6000) break;
 
     try {
-      const outcome = await tryGenerateWithModel(model, true, Math.min(24000, remainingBudget));
+      const outcome = await tryGenerateWithModel(model, true, Math.min(20000, remainingBudget));
       if (outcome.fatal) {
         if (visionKey && visionResult.tokens.length > 0) {
           return {
@@ -676,9 +702,30 @@ async function handleOcr(body = {}, env = {}) {
       if (outcome.error) {
         attemptErrors.push(`${model}: ${outcome.error}`);
         lastStatus = outcome.status || 502;
+        if (outcome.retryable) {
+          retryableModels.push(model);
+        }
       }
     } catch (err) {
       attemptErrors.push(`${model}: ${err?.message || String(err)}`);
+    }
+  }
+
+  // Brief jittered backoff retry on high-capacity models if all fast attempts hit transient 503/429
+  if (retryableModels.length > 0 && 48000 - (Date.now() - startedAt) >= 12000) {
+    await new Promise((r) => setTimeout(r, 1000 + Math.floor(Math.random() * 600)));
+    for (const model of retryableModels.slice(0, 2)) {
+      const remainingBudget = 48000 - (Date.now() - startedAt);
+      if (remainingBudget < 6000) break;
+      try {
+        const outcome = await tryGenerateWithModel(model, true, Math.min(18000, remainingBudget));
+        if (outcome.success) return outcome.success;
+        if (outcome.error) {
+          lastStatus = outcome.status || lastStatus;
+        }
+      } catch {
+        // Keep earlier error details
+      }
     }
   }
 
@@ -707,12 +754,17 @@ async function handleOcr(body = {}, env = {}) {
     }
   }
 
+  const allBusy = retryableModels.length > 0 && retryableModels.length === attemptErrors.length;
+  const friendlyError = allBusy
+    ? `Google Gemini servers are temporarily experiencing a traffic spike across (${candidateModels.join(', ')}). Please wait a few seconds and try again.`
+    : attemptErrors.slice(0, 3).join(' | ') || 'Failed to extract data with Gemini Vision.';
+
   return {
     status: lastStatus,
     json: {
       ok: false,
-      code: 'OCR_FAILED',
-      error: attemptErrors[0] || 'Failed to extract data with Gemini Vision.'
+      code: allBusy ? 'MODEL_BUSY' : 'OCR_FAILED',
+      error: friendlyError
     }
   };
 }
