@@ -6,6 +6,7 @@ import {
   checkOcrServerStatus,
   clearLegacyClientKeys,
   prepareFileForOcr,
+  compressImageForStorage,
   type OcrServerStatus
 } from './gemini';
 
@@ -142,6 +143,38 @@ export default function App() {
     return count;
   };
 
+  const persistScanSafely = async (doc: ScanRecord): Promise<{ saved: boolean; imageStripped: boolean }> => {
+    const compactImage = doc.imageDataUrl
+      ? await compressImageForStorage(doc.imageDataUrl).catch(() => doc.imageDataUrl)
+      : undefined;
+    const compactDoc: ScanRecord = { ...doc, imageDataUrl: compactImage };
+
+    try {
+      await db.scans.put(compactDoc);
+      return { saved: true, imageStripped: false };
+    } catch {
+      // Storage quota full: prune cached image blobs from older scans (keeping all extracted 10x19 data) and retry
+      try {
+        const existing = await db.scans.toArray();
+        const olderWithImages = existing.filter((d) => d.id !== doc.id && d.imageDataUrl);
+        for (const oldDoc of olderWithImages) {
+          await db.scans.put({ ...oldDoc, imageDataUrl: undefined });
+        }
+        await db.scans.put(compactDoc);
+        setDocuments((prev) => prev.map((d) => (d.id === doc.id ? doc : { ...d, imageDataUrl: undefined })));
+        return { saved: true, imageStripped: false };
+      } catch {
+        // Still full: save lightweight table data without image (~15 KB)
+        try {
+          await db.scans.put({ ...doc, imageDataUrl: undefined });
+          return { saved: true, imageStripped: true };
+        } catch {
+          return { saved: false, imageStripped: true };
+        }
+      }
+    }
+  };
+
   const processImageFile = async (file: File) => {
     setIsProcessing(true);
     setScanError(null);
@@ -182,11 +215,15 @@ export default function App() {
         rows: extraction.rows as any[]
       };
 
-      await db.scans.put(newDoc);
+      const saveOutcome = await persistScanSafely(newDoc);
       setDocuments(prev => [newDoc, ...prev]);
       setActiveDoc(newDoc);
       setActiveTab('review');
-      showToast('Document scanned & transcribed into 10×19 matrix!');
+      showToast(
+        saveOutcome.saved && !saveOutcome.imageStripped
+          ? 'Document scanned & transcribed into 10×19 matrix!'
+          : 'Scanned! Device storage is low—please export/download your sheet.'
+      );
     } catch (err: any) {
       console.error('OCR Extraction error:', err);
       const msg = String(err?.message || 'Scan failed. Please check the document clarity and try again.');
@@ -592,7 +629,7 @@ export default function App() {
     const updatedDoc = { ...activeDoc, rows: updatedRows };
     setActiveDoc(updatedDoc);
     setDocuments(prev => prev.map(d => d.id === updatedDoc.id ? updatedDoc : d));
-    await db.scans.put(updatedDoc);
+    await persistScanSafely(updatedDoc);
     showToast('Value updated and verified!');
     setSelectedCell(null);
   };
@@ -1538,7 +1575,11 @@ export default function App() {
                     </p>
                     <p className="font-mono text-[10.5px] text-[#3f4941] mt-0.5">
                       {ocrStatus?.ready
-                        ? 'Online and ready — no personal setup needed'
+                        ? `Online (${[
+                            ocrStatus.geminiConfigured ? 'Gemini Vision' : null,
+                            ocrStatus.ocrSpaceConfigured ? 'OCR.space' : null,
+                            ocrStatus.visionKeyConfigured ? 'Cloud Vision' : null
+                          ].filter(Boolean).join(' + ') || 'Ready'})`
                         : ocrStatus === null
                           ? 'Checking connection...'
                           : !ocrStatus.reachable
@@ -1588,7 +1629,7 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="p-3 bg-[#f4f6f5] rounded-xl border border-[#bec9bf]/40 flex items-center justify-between">
+              <div className="p-3 bg-[#f4f6f5] rounded-xl border border-[#bec9bf]/40 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2.5">
                   <span className="material-symbols-outlined text-[18px] text-[#3f4941]">inventory_2</span>
                   <div>
@@ -1596,13 +1637,40 @@ export default function App() {
                     <p className="font-mono text-[10.5px] text-[#6f7a71]">{documents.length} documents stored</p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('archive')}
-                  className="px-2.5 py-1 rounded-lg bg-white border border-[#bec9bf]/60 font-mono text-[10.5px] font-bold text-[#1f7a4d] hover:bg-[#e6f4ea] cursor-pointer"
-                >
-                  Open Archive
-                </button>
+                <div className="flex items-center gap-1.5">
+                  {documents.some((d) => d.imageDataUrl) && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const existing = await db.scans.toArray();
+                          for (const d of existing) {
+                            if (d.imageDataUrl) {
+                              await db.scans.put({ ...d, imageDataUrl: undefined });
+                            }
+                          }
+                          setDocuments((prev) => prev.map((d) => ({ ...d, imageDataUrl: undefined })));
+                          if (activeDoc) {
+                            setActiveDoc({ ...activeDoc, imageDataUrl: undefined });
+                          }
+                          showToast('Freed cached photo storage (tables kept).');
+                        } catch {
+                          showToast('Could not clear cached images.');
+                        }
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-white border border-[#bec9bf]/60 font-mono text-[10.5px] font-bold text-[#3f4941] hover:bg-[#eceeed] cursor-pointer"
+                    >
+                      Free Space
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('archive')}
+                    className="px-2.5 py-1 rounded-lg bg-white border border-[#bec9bf]/60 font-mono text-[10.5px] font-bold text-[#1f7a4d] hover:bg-[#e6f4ea] cursor-pointer"
+                  >
+                    Open Archive
+                  </button>
+                </div>
               </div>
             </section>
           </div>

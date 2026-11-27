@@ -75,6 +75,9 @@ export interface OcrServerStatus {
   reachable: boolean;
   ready: boolean;
   engineVersion?: string;
+  geminiConfigured?: boolean;
+  ocrSpaceConfigured?: boolean;
+  visionKeyConfigured?: boolean;
 }
 
 // Ensure no legacy browser-stored API keys linger from earlier builds
@@ -97,7 +100,10 @@ export async function checkOcrServerStatus(): Promise<OcrServerStatus> {
     return {
       reachable: true,
       ready: Boolean(data?.serverKeyConfigured),
-      engineVersion: typeof data?.engineVersion === 'string' ? data.engineVersion : undefined
+      engineVersion: typeof data?.engineVersion === 'string' ? data.engineVersion : undefined,
+      geminiConfigured: Boolean(data?.geminiConfigured),
+      ocrSpaceConfigured: Boolean(data?.ocrSpaceConfigured),
+      visionKeyConfigured: Boolean(data?.visionKeyConfigured)
     };
   } catch {
     return { reachable: false, ready: false };
@@ -282,6 +288,22 @@ export async function prepareUploadForOcr(dataUrl: string): Promise<string> {
     img.onload = () => {
       const canvas = drawBitmapToCanvas(img, img.naturalWidth || img.width, img.naturalHeight || img.height, 1600);
       resolve(encodeCanvasWithinBudget(canvas));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+// Create a lightweight archive copy (~80-160 KB) for IndexedDB so device storage never hits QuotaExceededError
+export async function compressImageForStorage(dataUrl: string): Promise<string> {
+  if (!dataUrl || !dataUrl.startsWith('data:image/') || dataUrl.length <= 180_000) {
+    return dataUrl;
+  }
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = drawBitmapToCanvas(img, img.naturalWidth || img.width, img.naturalHeight || img.height, 1000);
+      resolve(canvas.toDataURL('image/jpeg', 0.6));
     };
     img.onerror = () => resolve(dataUrl);
     img.src = dataUrl;
