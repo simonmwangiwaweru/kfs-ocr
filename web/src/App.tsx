@@ -1533,7 +1533,9 @@ export default function App() {
                         : 'bg-red-500'
                   }`}></span>
                   <div className="min-w-0">
-                    <p className="font-mono text-[11.5px] font-bold text-[#191c1c]">Document OCR Engine</p>
+                    <p className="font-mono text-[11.5px] font-bold text-[#191c1c]">
+                      Document OCR Engine{ocrStatus?.engineVersion ? ` (${ocrStatus.engineVersion})` : ''}
+                    </p>
                     <p className="font-mono text-[10.5px] text-[#3f4941] mt-0.5">
                       {ocrStatus?.ready
                         ? 'Online and ready — no personal setup needed'

@@ -74,6 +74,7 @@ export interface GeminiExtractionResult {
 export interface OcrServerStatus {
   reachable: boolean;
   ready: boolean;
+  engineVersion?: string;
 }
 
 // Ensure no legacy browser-stored API keys linger from earlier builds
@@ -95,18 +96,19 @@ export async function checkOcrServerStatus(): Promise<OcrServerStatus> {
     const data = await res.json().catch(() => ({}));
     return {
       reachable: true,
-      ready: Boolean(data?.serverKeyConfigured)
+      ready: Boolean(data?.serverKeyConfigured),
+      engineVersion: typeof data?.engineVersion === 'string' ? data.engineVersion : undefined
     };
   } catch {
     return { reachable: false, ready: false };
   }
 }
 
-// Keep encoded payload safely below Vercel's 4.5 MB serverless request body cap (~3.2 MB base64 dataUrl ≈ 2.4 MB binary)
-const MAX_DATA_URL_CHARS = 3_100_000;
+// Keep image crisp for handwriting while keeping payload compact (~400-950 KB) for fast mobile upload & vision latency
+const MAX_DATA_URL_CHARS = 1_400_000;
 
 function encodeCanvasWithinBudget(sourceCanvas: HTMLCanvasElement): string {
-  const qualitySteps = [0.9, 0.84, 0.78, 0.72, 0.65];
+  const qualitySteps = [0.84, 0.78, 0.72, 0.65];
   for (const quality of qualitySteps) {
     const encoded = sourceCanvas.toDataURL('image/jpeg', quality);
     if (encoded.length <= MAX_DATA_URL_CHARS) {
@@ -140,7 +142,7 @@ function drawBitmapToCanvas(
   source: CanvasImageSource,
   srcWidth: number,
   srcHeight: number,
-  maxEdge = 2400
+  maxEdge = 1600
 ): HTMLCanvasElement {
   let width = srcWidth;
   let height = srcHeight;
@@ -181,7 +183,7 @@ async function renderPdfFileToImageDataUrl(file: File): Promise<string> {
     const page = await pdf.getPage(1);
     const baseViewport = page.getViewport({ scale: 1 });
     const longestEdge = Math.max(baseViewport.width, baseViewport.height, 1);
-    const scale = Math.min(3.5, Math.max(1.5, 2400 / longestEdge));
+    const scale = Math.min(3.0, Math.max(1.25, 1600 / longestEdge));
     const viewport = page.getViewport({ scale });
 
     const canvas = document.createElement('canvas');
@@ -241,7 +243,7 @@ export async function prepareFileForOcr(
       });
       const width = img.naturalWidth || img.width;
       const height = img.naturalHeight || img.height;
-      const canvas = drawBitmapToCanvas(img, width, height, 2400);
+      const canvas = drawBitmapToCanvas(img, width, height, 1600);
       return encodeCanvasWithinBudget(canvas);
     } finally {
       URL.revokeObjectURL(objectUrl);
@@ -272,27 +274,13 @@ export async function prepareUploadForOcr(dataUrl: string): Promise<string> {
   }
 
   if (dataUrl.length <= MAX_DATA_URL_CHARS) {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        const width = img.naturalWidth || img.width;
-        const height = img.naturalHeight || img.height;
-        if (width <= 2400 && height <= 2400 && dataUrl.length < 2_400_000) {
-          resolve(dataUrl);
-          return;
-        }
-        const canvas = drawBitmapToCanvas(img, width, height, 2400);
-        resolve(encodeCanvasWithinBudget(canvas));
-      };
-      img.onerror = () => resolve(dataUrl);
-      img.src = dataUrl;
-    });
+    return dataUrl;
   }
 
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
-      const canvas = drawBitmapToCanvas(img, img.naturalWidth || img.width, img.naturalHeight || img.height, 2400);
+      const canvas = drawBitmapToCanvas(img, img.naturalWidth || img.width, img.naturalHeight || img.height, 1600);
       resolve(encodeCanvasWithinBudget(canvas));
     };
     img.onerror = () => resolve(dataUrl);
@@ -309,13 +297,27 @@ export async function extractWithGeminiVision(
 
   onStepChange?.('Running live 10×19 OCR extraction...');
 
-  const serverRes = await fetch('/api/ocr', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      imageDataUrl: preparedDataUrl
-    })
-  });
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 55_000);
+
+  let serverRes: Response;
+  try {
+    serverRes = await fetch('/api/ocr', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imageDataUrl: preparedDataUrl
+      }),
+      signal: controller.signal
+    });
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      throw new Error('The scan took longer than 55 seconds and timed out. Please try a clearer or closer photo.');
+    }
+    throw err;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 
   const payload = await serverRes.json().catch(() => null);
 
@@ -330,6 +332,10 @@ export async function extractWithGeminiVision(
 
   if (serverRes.status === 404) {
     throw new Error('Scanner server endpoint (/api/ocr) is not deployed yet.');
+  }
+
+  if (serverRes.status === 504) {
+    throw new Error('Server scan timed out (504). Please try again with a slightly closer photo.');
   }
 
   throw new Error(`Scanner service returned HTTP ${serverRes.status}. Please try again.`);
