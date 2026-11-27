@@ -832,6 +832,7 @@ export default function App() {
                     <div>
                       <p className="font-headline text-[13px] font-bold">Scan Could Not Be Completed</p>
                       <p className="font-mono text-[11px] text-red-700 mt-0.5 leading-relaxed">{scanError}</p>
+                      <p className="font-mono text-[9.5px] text-red-500/80 mt-1">App build: v4.4-safe-storage</p>
                     </div>
                   </div>
                   <button

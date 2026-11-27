@@ -111,7 +111,7 @@ function findEnvCaseInsensitive(targetNames, env = {}) {
   return '';
 }
 
-const ENGINE_VERSION = 'v4.3-resilient-flash';
+const ENGINE_VERSION = 'v4.4-safe-storage';
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = 22000) {
   const controller = new AbortController();
